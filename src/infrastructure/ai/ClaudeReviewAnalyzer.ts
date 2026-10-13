@@ -65,8 +65,12 @@ export class ClaudeReviewAnalyzer implements ReviewAnalyzer {
     return `claude:${this.model}`;
   }
 
-  async discoverTopics(sample: readonly ReviewText[], context: BusinessContext): Promise<TopicDefinition[]> {
-    const out = await this.ask(topicDiscoveryPrompt(sample, context), TopicsOutput, 'medium', 'descubrir temas');
+  async discoverTopics(
+    sample: readonly ReviewText[],
+    context: BusinessContext,
+    previousTopics: readonly TopicDefinition[] = [],
+  ): Promise<TopicDefinition[]> {
+    const out = await this.ask(topicDiscoveryPrompt(sample, context, previousTopics), TopicsOutput, 'medium', 'descubrir temas');
     return out.topics;
   }
 

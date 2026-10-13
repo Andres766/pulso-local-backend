@@ -11,6 +11,7 @@ import { ClearReviews, ImportReviews, ListReviews } from './application/use-case
 import type { AppConfig } from './config/env.js';
 import type { ReviewAnalyzer } from './domain/ports/ReviewAnalyzer.js';
 import { InsightAggregator } from './domain/services/InsightAggregator.js';
+import { InsightComparator } from './domain/services/InsightComparator.js';
 import { createReviewAnalyzer } from './infrastructure/ai/ReviewAnalyzerFactory.js';
 import { CsvReviewParser, PastedTextParser } from './infrastructure/csv/ReviewTextParsers.js';
 import { Database } from './infrastructure/db/Database.js';
@@ -92,7 +93,7 @@ export class Container {
     this.analysisController = new AnalysisController(
       new RequestAnalysis(access, reviews, this.analyses, this.analyzer, this.scheduler, executeAnalysis),
       new GetAnalysis(access, this.analyses),
-      new GetDashboard(access, reviews, this.analyses),
+      new GetDashboard(access, reviews, this.analyses, new InsightComparator()),
     );
   }
 }

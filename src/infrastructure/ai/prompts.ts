@@ -39,8 +39,22 @@ function reviewsBlock(reviews: readonly { alias: string; review: ReviewText }[])
     .join('\n');
 }
 
-export function topicDiscoveryPrompt(sample: readonly ReviewText[], ctx: BusinessContext): string {
+export function topicDiscoveryPrompt(
+  sample: readonly ReviewText[],
+  ctx: BusinessContext,
+  previousTopics: readonly TopicDefinition[] = [],
+): string {
+  const continuity = previousTopics.length
+    ? `
+En el análisis anterior de este negocio se usaron estos temas:
+${previousTopics.map((t) => `- ${t.key}: ${escapeXml(t.name)} — ${escapeXml(t.description)}`).join('\n')}
+Si un tema sigue apareciendo en las reseñas, reutiliza EXACTAMENTE su key, name y description
+(así el dueño puede comparar la evolución). Agrega temas nuevos solo si hay algo que ninguno cubre.
+`
+    : '';
+
   return `${businessLine(ctx)}
+${continuity}
 
 Lee esta muestra de ${sample.length} reseñas e identifica entre 4 y 8 TEMAS recurrentes que un dueño
 pueda gestionar (por ejemplo: tiempo de espera, atención del personal, precio, sabor, limpieza).
@@ -61,7 +75,7 @@ export function classificationPrompt(
   batch: readonly { alias: string; review: ReviewText }[],
   topics: readonly TopicDefinition[],
 ): string {
-  const taxonomy = topics.map((t) => `- ${t.key}: ${t.name} — ${t.description}`).join('\n');
+  const taxonomy = topics.map((t) => `- ${t.key}: ${escapeXml(t.name)} — ${escapeXml(t.description)}`).join('\n');
   return `Clasifica CADA una de las ${batch.length} reseñas.
 
 Para cada reseña devuelve:

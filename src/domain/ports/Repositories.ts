@@ -63,6 +63,8 @@ export interface AnalysisRepository {
   findById(id: string): Promise<AnalysisRun | null>;
   findLatest(businessId: string): Promise<AnalysisRun | null>;
   findLatestCompleted(businessId: string): Promise<AnalysisRun | null>;
+  /** Análisis completados, del más reciente al más antiguo. */
+  listCompleted(businessId: string, limit: number): Promise<AnalysisRun[]>;
   listByBusiness(businessId: string, limit: number): Promise<AnalysisRun[]>;
   /** Guarda el run completado y todos sus resultados en UNA transacción. */
   completeWithResults(run: AnalysisRun, results: AnalysisResults): Promise<void>;

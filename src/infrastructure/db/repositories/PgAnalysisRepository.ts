@@ -77,6 +77,15 @@ export class PgAnalysisRepository implements AnalysisRepository {
     return rows[0] ? PgAnalysisRepository.toDomain(rows[0]) : null;
   }
 
+  async listCompleted(businessId: string, limit: number): Promise<AnalysisRun[]> {
+    const { rows } = await this.db.query<RunRow>(
+      `SELECT * FROM analysis_runs WHERE business_id = $1 AND status = 'completed'
+       ORDER BY created_at DESC LIMIT $2`,
+      [businessId, limit],
+    );
+    return rows.map(PgAnalysisRepository.toDomain);
+  }
+
   async listByBusiness(businessId: string, limit: number): Promise<AnalysisRun[]> {
     const { rows } = await this.db.query<RunRow>(
       'SELECT * FROM analysis_runs WHERE business_id = $1 ORDER BY created_at DESC LIMIT $2',

@@ -3,6 +3,7 @@ import type { Business } from '../../../domain/entities/Business.js';
 import { NotFoundError } from '../../../domain/errors/DomainError.js';
 import type { InsightReport } from '../../../domain/model/Insight.js';
 import type { AnalysisRepository, ReviewRepository } from '../../../domain/ports/Repositories.js';
+import type { InsightComparator, InsightComparison } from '../../../domain/services/InsightComparator.js';
 import type { BusinessAccess } from '../businesses/BusinessAccess.js';
 
 export class GetAnalysis {
@@ -26,6 +27,9 @@ export interface Dashboard {
   reportRun: AnalysisRun | null;
   report: InsightReport | null;
   history: AnalysisRun[];
+  /** Análisis completado anterior al actual (base de la comparación). */
+  previousRun: AnalysisRun | null;
+  comparison: InsightComparison | null;
 }
 
 /** Consulta (lado de lectura, estilo CQRS ligero) que arma todo lo que pinta el dashboard. */
@@ -34,17 +38,26 @@ export class GetDashboard {
     private readonly access: BusinessAccess,
     private readonly reviews: ReviewRepository,
     private readonly analyses: AnalysisRepository,
+    private readonly comparator: InsightComparator,
   ) {}
 
   async execute(businessId: string, userId: string): Promise<Dashboard> {
     const business = await this.access.requireOwned(businessId, userId);
-    const [reviewCount, latestRun, reportRun, history] = await Promise.all([
+    const [reviewCount, latestRun, completed, history] = await Promise.all([
       this.reviews.countByBusiness(businessId),
       this.analyses.findLatest(businessId),
-      this.analyses.findLatestCompleted(businessId),
-      this.analyses.listByBusiness(businessId, 5),
+      this.analyses.listCompleted(businessId, 2),
+      this.analyses.listByBusiness(businessId, 8),
     ]);
-    const report = reportRun ? await this.analyses.getReport(reportRun.id) : null;
-    return { business, reviewCount, latestRun, reportRun, report, history };
+    const reportRun = completed[0] ?? null;
+    const previousRun = completed[1] ?? null;
+
+    const [report, previousReport] = await Promise.all([
+      reportRun ? this.analyses.getReport(reportRun.id) : null,
+      previousRun ? this.analyses.getReport(previousRun.id) : null,
+    ]);
+    const comparison = report && previousReport ? this.comparator.compare(report, previousReport) : null;
+
+    return { business, reviewCount, latestRun, reportRun, report, history, previousRun, comparison };
   }
 }

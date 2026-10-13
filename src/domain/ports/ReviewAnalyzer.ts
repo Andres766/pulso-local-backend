@@ -24,7 +24,15 @@ export interface ReviewAnalyzer {
   /** Cuántas reseñas procesa por llamada en classify(). */
   readonly batchSize: number;
 
-  discoverTopics(sample: readonly ReviewText[], context: BusinessContext): Promise<TopicDefinition[]>;
+  /**
+   * @param previousTopics taxonomía del análisis anterior: el proveedor debe reutilizar sus keys
+   *        cuando los temas sigan vigentes, para que la evolución entre análisis sea comparable.
+   */
+  discoverTopics(
+    sample: readonly ReviewText[],
+    context: BusinessContext,
+    previousTopics?: readonly TopicDefinition[],
+  ): Promise<TopicDefinition[]>;
 
   classify(batch: readonly ReviewText[], topics: readonly TopicDefinition[]): Promise<ReviewClassification[]>;
 

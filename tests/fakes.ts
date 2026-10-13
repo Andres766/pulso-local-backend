@@ -69,6 +69,7 @@ export class InMemoryAnalyses implements AnalysisRepository {
   }
   async findLatest(id: string) { return this.byBusiness(id)[0] ?? null; }
   async findLatestCompleted(id: string) { return this.byBusiness(id).find((r) => r.status === 'completed') ?? null; }
+  async listCompleted(id: string, limit: number) { return this.byBusiness(id).filter((r) => r.status === 'completed').slice(0, limit); }
   async listByBusiness(id: string, limit: number) { return this.byBusiness(id).slice(0, limit); }
   async completeWithResults(run: AnalysisRun, results: AnalysisResults) {
     this.runs.set(run.id, run);

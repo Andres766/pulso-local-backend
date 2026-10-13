@@ -32,6 +32,8 @@ export class AnalysisController {
       reportRun: d.reportRun?.toJSON() ?? null,
       report: d.report,
       history: d.history.map((r) => r.toJSON()),
+      previousRun: d.previousRun?.toJSON() ?? null,
+      comparison: d.comparison,
     });
   };
 }

@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it } from 'vitest';
+import { GetDashboard } from '../../src/application/use-cases/analysis/AnalysisQueries.js';
 import { ExecuteAnalysis } from '../../src/application/use-cases/analysis/ExecuteAnalysis.js';
 import { RequestAnalysis } from '../../src/application/use-cases/analysis/RequestAnalysis.js';
 import { AuthenticateUser } from '../../src/application/use-cases/auth/AuthenticateUser.js';
@@ -15,6 +16,7 @@ import {
 } from '../../src/domain/errors/DomainError.js';
 import type { ReviewAnalyzer } from '../../src/domain/ports/ReviewAnalyzer.js';
 import { InsightAggregator } from '../../src/domain/services/InsightAggregator.js';
+import { InsightComparator } from '../../src/domain/services/InsightComparator.js';
 import { Sentiment } from '../../src/domain/value-objects/Sentiment.js';
 import { HeuristicReviewAnalyzer } from '../../src/infrastructure/ai/HeuristicReviewAnalyzer.js';
 import {
@@ -154,6 +156,41 @@ describe('Importación y análisis', () => {
     const stored = await analyses.findById(run.id);
     expect(stored?.status).toBe('failed');
     expect(stored?.error).toBe('El servicio de IA está ocupado.');
+  });
+
+  it('el segundo análisis recibe la taxonomía anterior y el dashboard muestra la evolución', async () => {
+    const received: string[][] = [];
+    const heuristic = new HeuristicReviewAnalyzer();
+    const spy: ReviewAnalyzer = {
+      providerName: heuristic.providerName,
+      batchSize: heuristic.batchSize,
+      discoverTopics: async (_sample, _ctx, previous = []) => {
+        received.push(previous.map((t) => t.key));
+        return heuristic.discoverTopics();
+      },
+      classify: (batch) => heuristic.classify(batch),
+      recommend: (stats, ctx) => heuristic.recommend(stats, ctx),
+    };
+    const { importReviews, requestAnalysis } = build(spy);
+    const dashboard = new GetDashboard(new BusinessAccess(businesses), reviews, analyses, new InsightComparator());
+
+    await importReviews.execute(businessId, 'owner', [{ content: 'Se demoraron una hora, pésimo', rating: 1 }, { content: 'Lento y frío', rating: 1 }], 'csv');
+    await requestAnalysis.execute(businessId, 'owner');
+    await scheduler.flush();
+    expect((await dashboard.execute(businessId, 'owner')).comparison).toBeNull();
+
+    await importReviews.execute(businessId, 'owner', [{ content: 'Excelente y rapidísimo', rating: 5 }, { content: 'Delicioso, atención rápida', rating: 5 }], 'csv');
+    await new Promise((r) => setTimeout(r, 5)); // createdAt distinto para ordenar los análisis
+    await requestAnalysis.execute(businessId, 'owner');
+    await scheduler.flush();
+
+    expect(received[0]).toEqual([]);
+    expect(received[1]).toContain('tiempo_espera');
+
+    const d = await dashboard.execute(businessId, 'owner');
+    expect(d.previousRun).not.toBeNull();
+    expect(d.comparison!.negativeShareDelta).toBeLessThan(0);
+    expect(d.comparison!.topics.find((t) => t.key === 'tiempo_espera')?.trend).toBe('improved');
   });
 
   it('descarta IDs y temas que el modelo invente', async () => {

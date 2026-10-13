@@ -48,7 +48,10 @@ export class ExecuteAnalysis {
       const context: BusinessContext = { name: business.name, category: business.category, city: business.city };
       const reviews = (await this.reviews.listForAnalysis(business.id, this.maxReviews)).map(ExecuteAnalysis.toText);
 
-      const topics = this.sanitizeTopics(await this.analyzer.discoverTopics(ExecuteAnalysis.sample(reviews), context));
+      const previousTopics = await this.previousTaxonomy(business.id);
+      const topics = this.sanitizeTopics(
+        await this.analyzer.discoverTopics(ExecuteAnalysis.sample(reviews), context, previousTopics),
+      );
       const classifications = await this.classifyAll(reviews, topics);
       const stats = this.aggregator.aggregate(reviews, topics, classifications);
       const drafts = await this.analyzer.recommend(stats, context);
@@ -72,6 +75,14 @@ export class ExecuteAnalysis {
       run.fail(message);
       await this.analyses.save(run);
     }
+  }
+
+  /** Temas del último análisis completado: permiten que el nuevo análisis sea comparable con el anterior. */
+  private async previousTaxonomy(businessId: string): Promise<TopicDefinition[]> {
+    const previous = await this.analyses.findLatestCompleted(businessId);
+    if (!previous) return [];
+    const report = await this.analyses.getReport(previous.id);
+    return report?.stats.topics.map(({ key, name, description }) => ({ key, name, description })) ?? [];
   }
 
   /** Clasifica en lotes con concurrencia limitada (no saturar la API ni el rate limit). */
