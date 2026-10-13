@@ -34,6 +34,7 @@ export class CsvReviewParser implements ReviewSourceParser {
         skip_empty_lines: true,
         trim: true,
         relax_column_count: true,
+        relax_quotes: true, // comillas sueltas dentro de un campo (frecuente al pegar desde otras apps)
         max_record_size: 10_000,
       });
     } catch {

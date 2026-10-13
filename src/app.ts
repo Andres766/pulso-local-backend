@@ -2,17 +2,36 @@ import cookieParser from 'cookie-parser';
 import cors from 'cors';
 import express, { type Express } from 'express';
 import helmet from 'helmet';
+import type { Logger as PinoLogger } from 'pino';
 import { pinoHttp } from 'pino-http';
-import type { Container } from './container.js';
+import type { AppConfig } from './config/env.js';
+import type { TokenService } from './domain/ports/Services.js';
+import type { AnalysisController } from './interfaces/http/controllers/AnalysisController.js';
+import type { AuthController } from './interfaces/http/controllers/AuthController.js';
+import type { BusinessController } from './interfaces/http/controllers/BusinessController.js';
+import type { ReviewController } from './interfaces/http/controllers/ReviewController.js';
 import { createApiRouter } from './interfaces/http/routes.js';
 import { errorHandler, notFoundHandler } from './interfaces/http/middlewares/errorHandler.js';
 import { apiLimiter, CSRF_HEADER, requireCsrfHeader } from './interfaces/http/middlewares/security.js';
 
 /**
- * Construye la aplicación Express. Recibe el contenedor ya armado (inyección de dependencias),
- * lo que permite crear la app en los tests con dependencias falsas.
+ * Lo que la capa HTTP necesita para funcionar. `Container` lo cumple en producción;
+ * las pruebas de integración arman uno con repositorios en memoria (sin base de datos).
  */
-export function createApp(c: Container): Express {
+export interface AppDependencies {
+  config: Pick<AppConfig, 'FRONTEND_ORIGIN' | 'TRUST_PROXY'>;
+  logger: PinoLogger;
+  db: { ping(): Promise<boolean> };
+  tokens: TokenService;
+  analyzer: { readonly providerName: string };
+  authController: AuthController;
+  businessController: BusinessController;
+  reviewController: ReviewController;
+  analysisController: AnalysisController;
+}
+
+/** Construye la aplicación Express a partir de sus dependencias ya armadas (inyección de dependencias). */
+export function createApp(c: AppDependencies): Express {
   const app = express();
   const { config } = c;
 

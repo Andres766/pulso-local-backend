@@ -1,4 +1,5 @@
 import { pino, type Logger as PinoLogger } from 'pino';
+import type { AppDependencies } from './app.js';
 import { GetAnalysis, GetDashboard } from './application/use-cases/analysis/AnalysisQueries.js';
 import { ExecuteAnalysis } from './application/use-cases/analysis/ExecuteAnalysis.js';
 import { MAX_REVIEWS_PER_ANALYSIS, RequestAnalysis } from './application/use-cases/analysis/RequestAnalysis.js';
@@ -33,7 +34,7 @@ import { ReviewController } from './interfaces/http/controllers/ReviewController
  * concretas y se conectan entre sí. El resto del código solo conoce interfaces (puertos),
  * lo que materializa el principio de inversión de dependencias (la D de SOLID).
  */
-export class Container {
+export class Container implements AppDependencies {
   readonly logger: PinoLogger;
   readonly db: Database;
   readonly tokens: JwtTokenService;

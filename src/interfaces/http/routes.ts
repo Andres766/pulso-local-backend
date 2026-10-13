@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import multer from 'multer';
-import type { Container } from '../../container.js';
+import type { AppDependencies } from '../../app.js';
 import { HttpError } from './middlewares/errorHandler.js';
 import { analysisLimiter, authLimiter, noStore, requireAuth } from './middlewares/security.js';
 
@@ -18,7 +18,7 @@ const csvUpload = multer({
   },
 });
 
-export function createApiRouter(c: Container): Router {
+export function createApiRouter(c: AppDependencies): Router {
   const router = Router();
   const auth = requireAuth(c.tokens);
 
