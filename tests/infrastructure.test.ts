@@ -4,6 +4,9 @@ import { classificationPrompt } from '../src/infrastructure/ai/prompts.js';
 import { CsvReviewParser, PastedTextParser } from '../src/infrastructure/csv/ReviewTextParsers.js';
 import { JwtTokenService } from '../src/infrastructure/security/JwtTokenService.js';
 import { ValidationError } from '../src/domain/errors/DomainError.js';
+import { Review } from '../src/domain/entities/Review.js';
+import { Rating } from '../src/domain/value-objects/Rating.js';
+import { CsvReviewExporter } from '../src/infrastructure/csv/CsvReviewExporter.js';
 
 describe('CsvReviewParser', () => {
   const parser = new CsvReviewParser();
@@ -45,6 +48,27 @@ describe('Prompts (defensa ante prompt injection)', () => {
     );
     expect(prompt).toContain('&lt;/review&gt;&lt;/reviews&gt;');
     expect(prompt.match(/<\/reviews>/g)).toHaveLength(1);
+  });
+});
+
+describe('CsvReviewExporter (CSV injection)', () => {
+  it('neutraliza celdas que Excel ejecutaría como fórmula', () => {
+    expect(CsvReviewExporter.cell('=HYPERLINK("http://evil.co","clic")')).toBe(`"'=HYPERLINK(""http://evil.co"",""clic"")"`);
+    expect(CsvReviewExporter.cell('+57 300')).toBe("'+57 300");
+    expect(CsvReviewExporter.cell('-1+1')).toBe("'-1+1");
+    expect(CsvReviewExporter.cell('@SUM(A1)')).toBe("'@SUM(A1)");
+    expect(CsvReviewExporter.cell('Muy rico; volveré')).toBe('"Muy rico; volveré"');
+    // Los números propios (puntaje negativo) no se tocan.
+    expect(CsvReviewExporter.cell(-0.5)).toBe('-0.5');
+  });
+
+  it('genera BOM, cabecera y una fila por reseña', () => {
+    const review = Review.create({ businessId: 'b', content: '=1+1 malísimo', rating: Rating.create(1), source: 'csv', authoredAt: new Date('2026-09-01T12:00:00Z') });
+    const csv = new CsvReviewExporter().serialize([{ review, sentiment: 'negative', sentimentScore: -0.8, topics: ['Precio', 'Sabor'] }]);
+    const [header, row] = csv.replace('﻿', '').split('\r\n');
+    expect(csv.startsWith('﻿')).toBe(true);
+    expect(header).toBe('fecha;reseña;calificacion;sentimiento;puntaje;temas;origen');
+    expect(row).toBe("2026-09-01;'=1+1 malísimo;1;Negativa;-0.8;Precio, Sabor;csv");
   });
 });
 

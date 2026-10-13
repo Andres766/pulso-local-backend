@@ -7,12 +7,13 @@ import { GetCurrentUser } from './application/use-cases/auth/GetCurrentUser.js';
 import { RegisterUser } from './application/use-cases/auth/RegisterUser.js';
 import { BusinessAccess } from './application/use-cases/businesses/BusinessAccess.js';
 import { CreateBusiness, DeleteBusiness, GetBusiness, ListBusinesses } from './application/use-cases/businesses/BusinessUseCases.js';
-import { ClearReviews, ImportReviews, ListReviews } from './application/use-cases/reviews/ReviewUseCases.js';
+import { ClearReviews, ExportReviews, ImportReviews, ListReviews } from './application/use-cases/reviews/ReviewUseCases.js';
 import type { AppConfig } from './config/env.js';
 import type { ReviewAnalyzer } from './domain/ports/ReviewAnalyzer.js';
 import { InsightAggregator } from './domain/services/InsightAggregator.js';
 import { InsightComparator } from './domain/services/InsightComparator.js';
 import { createReviewAnalyzer } from './infrastructure/ai/ReviewAnalyzerFactory.js';
+import { CsvReviewExporter } from './infrastructure/csv/CsvReviewExporter.js';
 import { CsvReviewParser, PastedTextParser } from './infrastructure/csv/ReviewTextParsers.js';
 import { Database } from './infrastructure/db/Database.js';
 import { PgAnalysisRepository } from './infrastructure/db/repositories/PgAnalysisRepository.js';
@@ -87,8 +88,10 @@ export class Container {
       new ImportReviews(access, reviews),
       new ListReviews(access, reviews),
       new ClearReviews(access, reviews),
+      new ExportReviews(access, reviews),
       new CsvReviewParser(),
       new PastedTextParser(),
+      new CsvReviewExporter(),
     );
     this.analysisController = new AnalysisController(
       new RequestAnalysis(access, reviews, this.analyses, this.analyzer, this.scheduler, executeAnalysis),

@@ -43,6 +43,7 @@ export function createApiRouter(c: Container): Router {
 
   // Reseñas
   router.get('/businesses/:id/reviews', auth, c.reviewController.list);
+  router.get('/businesses/:id/reviews/export', auth, c.reviewController.exportCsv);
   router.post('/businesses/:id/reviews/csv', auth, csvUpload.single('file'), c.reviewController.uploadCsv);
   router.post('/businesses/:id/reviews/text', auth, c.reviewController.paste);
   router.delete('/businesses/:id/reviews', auth, c.reviewController.clear);

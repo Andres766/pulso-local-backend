@@ -85,6 +85,23 @@ export class ListReviews {
   }
 }
 
+/** Tope de filas por exportación: evita respuestas gigantes y consultas costosas. */
+export const MAX_EXPORT_ROWS = 10_000;
+
+/** Reúne todas las reseñas del negocio con el resultado del último análisis, para exportarlas. */
+export class ExportReviews {
+  constructor(
+    private readonly access: BusinessAccess,
+    private readonly reviews: ReviewRepository,
+  ) {}
+
+  async execute(businessId: string, userId: string): Promise<{ businessName: string; items: ReviewWithInsight[] }> {
+    const business = await this.access.requireOwned(businessId, userId);
+    const { items } = await this.reviews.search(businessId, { limit: MAX_EXPORT_ROWS, offset: 0 });
+    return { businessName: business.name, items };
+  }
+}
+
 export class ClearReviews {
   constructor(
     private readonly access: BusinessAccess,

@@ -1,6 +1,12 @@
 import type { Request, Response } from 'express';
-import type { ClearReviews, ImportReviews, ListReviews } from '../../../application/use-cases/reviews/ReviewUseCases.js';
+import type {
+  ClearReviews,
+  ExportReviews,
+  ImportReviews,
+  ListReviews,
+} from '../../../application/use-cases/reviews/ReviewUseCases.js';
 import { ValidationError } from '../../../domain/errors/DomainError.js';
+import type { CsvReviewExporter } from '../../../infrastructure/csv/CsvReviewExporter.js';
 import type { ReviewSourceParser } from '../../../infrastructure/csv/ReviewTextParsers.js';
 import { listReviewsQuery, pasteReviewsSchema, uuidParam } from '../schemas.js';
 
@@ -9,8 +15,10 @@ export class ReviewController {
     private readonly importReviews: ImportReviews,
     private readonly listReviews: ListReviews,
     private readonly clearReviews: ClearReviews,
+    private readonly exportReviews: ExportReviews,
     private readonly csvParser: ReviewSourceParser,
     private readonly textParser: ReviewSourceParser,
+    private readonly exporter: CsvReviewExporter,
   ) {}
 
   list = async (req: Request, res: Response) => {
@@ -46,11 +54,35 @@ export class ReviewController {
     res.status(201).json(summary);
   };
 
+  /** Descarga CSV con el sentimiento y los temas del último análisis. */
+  exportCsv = async (req: Request, res: Response) => {
+    const { id } = uuidParam.parse(req.params);
+    const { businessName, items } = await this.exportReviews.execute(id, req.userId!);
+    const filename = `resenas-${ReviewController.slug(businessName)}-${new Date().toISOString().slice(0, 10)}.csv`;
+    res
+      .type('text/csv; charset=utf-8')
+      .attachment(filename)
+      .send(this.exporter.serialize(items));
+  };
+
   clear = async (req: Request, res: Response) => {
     const { id } = uuidParam.parse(req.params);
     const deleted = await this.clearReviews.execute(id, req.userId!);
     res.json({ deleted });
   };
+
+  /** Nombre de archivo seguro: solo letras, números y guiones (sin rutas ni comillas en la cabecera). */
+  private static slug(text: string): string {
+    return (
+      text
+        .toLowerCase()
+        .normalize('NFD')
+        .replace(/[̀-ͯ]/g, '')
+        .replace(/[^a-z0-9]+/g, '-')
+        .replace(/^-|-$/g, '')
+        .slice(0, 40) || 'negocio'
+    );
+  }
 
   /** Rechaza binarios disfrazados de CSV: el contenido debe ser UTF-8 válido y sin bytes nulos. */
   private static decodeUtf8(buffer: Buffer): string {
