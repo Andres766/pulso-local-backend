@@ -1,5 +1,5 @@
 import type { RequestHandler } from 'express';
-import { rateLimit } from 'express-rate-limit';
+import { ipKeyGenerator, rateLimit } from 'express-rate-limit';
 import type { TokenService } from '../../../domain/ports/Services.js';
 import { HttpError } from './errorHandler.js';
 
@@ -65,14 +65,38 @@ export const apiLimiter = rateLimit({
   message: limitMessage('Demasiadas solicitudes, intenta más tarde'),
 });
 
-/** Límite estricto para login/registro: frena fuerza bruta y relleno de credenciales. */
+/** Correo normalizado del cuerpo (login/registro) para usarlo como parte de la clave del límite. */
+const emailOf = (body: unknown): string => {
+  const email = (body as { email?: unknown } | undefined)?.email;
+  return typeof email === 'string' ? email.trim().toLowerCase().slice(0, 254) : '';
+};
+
+/**
+ * Límite estricto por IP + cuenta: 10 intentos fallidos cada 15 minutos contra un mismo correo.
+ * Se combina la IP con el correo porque detrás de un proxy (Vercel) muchos usuarios comparten IP:
+ * así los errores de uno no bloquean a los demás. Solo cuentan los intentos fallidos.
+ */
 export const authLimiter = rateLimit({
   windowMs: 15 * 60_000,
   limit: 10,
   standardHeaders: 'draft-8',
   legacyHeaders: false,
   skipSuccessfulRequests: true,
+  keyGenerator: (req) => `${ipKeyGenerator(req.ip ?? '')}|${emailOf(req.body) || req.userId || '-'}`,
   message: limitMessage('Demasiados intentos. Espera 15 minutos.'),
+});
+
+/**
+ * Límite amplio solo por IP: frena el relleno de credenciales (probar muchas cuentas distintas
+ * desde un mismo origen), que el límite por cuenta no detecta.
+ */
+export const authIpLimiter = rateLimit({
+  windowMs: 15 * 60_000,
+  limit: 50,
+  standardHeaders: 'draft-8',
+  legacyHeaders: false,
+  skipSuccessfulRequests: true,
+  message: limitMessage('Demasiados intentos desde tu red. Espera 15 minutos.'),
 });
 
 /** Límite para lanzar análisis: cada uno consume llamadas pagas al LLM. */

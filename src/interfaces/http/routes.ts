@@ -2,7 +2,7 @@ import { Router } from 'express';
 import multer from 'multer';
 import type { AppDependencies } from '../../app.js';
 import { HttpError } from './middlewares/errorHandler.js';
-import { analysisLimiter, authLimiter, noStore, requireAuth } from './middlewares/security.js';
+import { analysisLimiter, authIpLimiter, authLimiter, noStore, requireAuth } from './middlewares/security.js';
 
 const MAX_CSV_BYTES = 1024 * 1024;
 const CSV_MIME_TYPES = new Set(['text/csv', 'text/plain', 'application/vnd.ms-excel', 'application/csv']);
@@ -30,8 +30,8 @@ export function createApiRouter(c: AppDependencies): Router {
   });
 
   // Autenticación
-  router.post('/auth/register', authLimiter, c.authController.register);
-  router.post('/auth/login', authLimiter, c.authController.login);
+  router.post('/auth/register', authIpLimiter, authLimiter, c.authController.register);
+  router.post('/auth/login', authIpLimiter, authLimiter, c.authController.login);
   router.post('/auth/logout', c.authController.logout);
   router.get('/auth/me', auth, c.authController.me);
 

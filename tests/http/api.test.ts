@@ -157,6 +157,15 @@ describe('API HTTP', () => {
       expect((await attempt('Galeras2026x')).status).toBe(423);
     });
 
+    it('el límite de intentos es por cuenta: los fallos con un correo no bloquean otro correo de la misma IP', async () => {
+      const attempt = (email: string) => request(app).post('/api/auth/login').set(CSRF).send({ email, password: 'cualquiera-123' });
+      for (let i = 0; i < 10; i++) await attempt('atacada@cafe.co');
+      const limited = await attempt('atacada@cafe.co');
+      expect(limited.status).toBe(429);
+      expect(limited.body.error.code).toBe('RATE_LIMITED');
+      expect((await attempt('otra.persona@cafe.co')).status).toBe(401); // misma IP, otra cuenta
+    });
+
     it('rechaza peticiones que modifican estado sin el header anti-CSRF', async () => {
       const res = await request(app).post('/api/businesses').set('Cookie', owner).send({ name: 'X', category: 'otro' });
       expect(res.status).toBe(403);
