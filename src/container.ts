@@ -18,6 +18,7 @@ import {
 } from './application/use-cases/businesses/BusinessUseCases.js';
 import { ClearReviews, DeleteReview, ExportReviews, ImportReviews, ListReviews } from './application/use-cases/reviews/ReviewUseCases.js';
 import type { AppConfig } from './config/env.js';
+import { readAppVersion } from './config/version.js';
 import type { ReviewAnalyzer } from './domain/ports/ReviewAnalyzer.js';
 import { InsightAggregator } from './domain/services/InsightAggregator.js';
 import { InsightComparator } from './domain/services/InsightComparator.js';
@@ -36,6 +37,7 @@ import { JwtTokenService } from './infrastructure/security/JwtTokenService.js';
 import { AnalysisController } from './interfaces/http/controllers/AnalysisController.js';
 import { AuthController } from './interfaces/http/controllers/AuthController.js';
 import { BusinessController } from './interfaces/http/controllers/BusinessController.js';
+import { HealthController } from './interfaces/http/controllers/HealthController.js';
 import { ReviewController } from './interfaces/http/controllers/ReviewController.js';
 
 /**
@@ -56,6 +58,7 @@ export class Container implements AppDependencies {
   readonly businessController: BusinessController;
   readonly reviewController: ReviewController;
   readonly analysisController: AnalysisController;
+  readonly healthController: HealthController;
 
   constructor(readonly config: AppConfig) {
     this.logger = pino({
@@ -121,5 +124,6 @@ export class Container implements AppDependencies {
       new GetDashboard(access, reviews, this.analyses, new InsightComparator()),
       new GetSentimentTrend(access, this.analyses, new SentimentTrend()),
     );
+    this.healthController = new HealthController(this.db, this.analyzer.providerName, readAppVersion());
   }
 }

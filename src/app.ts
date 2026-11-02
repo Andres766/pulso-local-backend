@@ -9,6 +9,7 @@ import type { SessionValidator, TokenService } from './domain/ports/Services.js'
 import type { AnalysisController } from './interfaces/http/controllers/AnalysisController.js';
 import type { AuthController } from './interfaces/http/controllers/AuthController.js';
 import type { BusinessController } from './interfaces/http/controllers/BusinessController.js';
+import type { HealthController } from './interfaces/http/controllers/HealthController.js';
 import type { ReviewController } from './interfaces/http/controllers/ReviewController.js';
 import { errorHandler, notFoundHandler } from './interfaces/http/middlewares/errorHandler.js';
 import { genRequestId } from './interfaces/http/middlewares/requestId.js';
@@ -22,10 +23,9 @@ import { createApiRouter } from './interfaces/http/routes.js';
 export interface AppDependencies {
   config: Pick<AppConfig, 'FRONTEND_ORIGIN' | 'TRUST_PROXY'>;
   logger: PinoLogger;
-  db: { ping(): Promise<boolean> };
   tokens: TokenService;
   sessions: SessionValidator;
-  analyzer: { readonly providerName: string };
+  healthController: HealthController;
   authController: AuthController;
   businessController: BusinessController;
   reviewController: ReviewController;

@@ -24,10 +24,7 @@ export function createApiRouter(c: AppDependencies): Router {
 
   router.use(noStore);
 
-  router.get('/health', async (_req, res) => {
-    const db = await c.db.ping();
-    res.status(db ? 200 : 503).json({ status: db ? 'ok' : 'degraded', db, ai: c.analyzer.providerName });
-  });
+  router.get('/health', c.healthController.check);
 
   // Autenticación
   router.post('/auth/register', authIpLimiter, authLimiter, c.authController.register);

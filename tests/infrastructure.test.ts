@@ -93,3 +93,10 @@ describe('JwtTokenService', () => {
     expect(new JwtTokenService('y'.repeat(40), 1).verify(token)).toBeNull();
   });
 });
+
+describe('readAppVersion', () => {
+  it('lee la versión desde package.json', async () => {
+    const { readAppVersion } = await import('../src/config/version.js');
+    expect(readAppVersion()).toMatch(/^\d+\.\d+\.\d+$/);
+  });
+});

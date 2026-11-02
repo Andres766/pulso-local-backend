@@ -35,6 +35,7 @@ import { JwtTokenService } from '../../src/infrastructure/security/JwtTokenServi
 import { AnalysisController } from '../../src/interfaces/http/controllers/AnalysisController.js';
 import { AuthController } from '../../src/interfaces/http/controllers/AuthController.js';
 import { BusinessController } from '../../src/interfaces/http/controllers/BusinessController.js';
+import { HealthController } from '../../src/interfaces/http/controllers/HealthController.js';
 import { ReviewController } from '../../src/interfaces/http/controllers/ReviewController.js';
 import { errorHandler } from '../../src/interfaces/http/middlewares/errorHandler.js';
 import { FakeHasher, InMemoryAnalyses, InMemoryBusinesses, InMemoryReviews, InMemoryUsers, silentLogger } from '../fakes.js';
@@ -61,10 +62,9 @@ function buildApp() {
   const deps: AppDependencies = {
     config: { FRONTEND_ORIGIN: 'http://localhost:5180', TRUST_PROXY: false },
     logger: pino({ level: 'silent' }),
-    db: { ping: async () => true },
     tokens,
     sessions: new ValidateSession(users),
-    analyzer,
+    healthController: new HealthController({ ping: async () => true }, analyzer.providerName, '9.9.9'),
     authController: new AuthController(
       new RegisterUser(users, hasher),
       new AuthenticateUser(users, hasher, tokens),
@@ -129,6 +129,7 @@ describe('API HTTP', () => {
     it('envía cabeceras de seguridad y oculta la tecnología', async () => {
       const res = await request(app).get('/api/health');
       expect(res.status).toBe(200);
+      expect(res.body).toMatchObject({ status: 'ok', db: true, version: '9.9.9' });
       expect(res.headers['x-powered-by']).toBeUndefined();
       expect(res.headers['content-security-policy']).toContain("default-src 'none'");
       expect(res.headers['x-content-type-options']).toBe('nosniff');
