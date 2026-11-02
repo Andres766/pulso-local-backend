@@ -14,6 +14,7 @@ import {
   DeleteBusiness,
   GetBusiness,
   ListBusinesses,
+  UpdateBusiness,
 } from '../../src/application/use-cases/businesses/BusinessUseCases.js';
 import { ClearReviews, ExportReviews, ImportReviews, ListReviews } from '../../src/application/use-cases/reviews/ReviewUseCases.js';
 import { InsightAggregator } from '../../src/domain/services/InsightAggregator.js';
@@ -69,6 +70,7 @@ function buildApp() {
       new ListBusinesses(businesses),
       new GetBusiness(access),
       new DeleteBusiness(access, businesses),
+      new UpdateBusiness(access, businesses),
     ),
     reviewController: new ReviewController(
       new ImportReviews(access, reviews),
@@ -159,6 +161,18 @@ describe('API HTTP', () => {
       expect((await request(app).get(`/api/businesses/${businessId}/reviews/export`).set('Cookie', intruder)).status).toBe(404);
       expect((await request(app).delete(`/api/businesses/${businessId}`).set(CSRF).set('Cookie', intruder)).status).toBe(404);
       expect((await request(app).get(`/api/businesses/${businessId}`).set('Cookie', owner)).status).toBe(200);
+    });
+
+    it('el dueño edita su negocio; un intruso no puede, ni se puede cambiar el dueño', async () => {
+      const url = `/api/businesses/${businessId}`;
+      const ok = await request(app).patch(url).set(CSRF).set('Cookie', owner).send({ city: 'Pasto', name: 'Café Galeras Centro' });
+      expect(ok.status).toBe(200);
+      expect(ok.body).toMatchObject({ name: 'Café Galeras Centro', city: 'Pasto', category: 'cafeteria' });
+
+      expect((await request(app).patch(url).set(CSRF).set('Cookie', intruder).send({ name: 'Hackeado' })).status).toBe(404);
+      expect((await request(app).patch(url).set(CSRF).set('Cookie', owner).send({ ownerId: 'otro' })).status).toBe(400);
+      expect((await request(app).patch(url).set(CSRF).set('Cookie', owner).send({})).status).toBe(400);
+      expect((await request(app).patch(url).set('Cookie', owner).send({ name: 'Sin CSRF' })).status).toBe(403);
     });
 
     it('rechaza campos no declarados (mass assignment) e IDs inválidos', async () => {

@@ -4,8 +4,9 @@ import type {
   DeleteBusiness,
   GetBusiness,
   ListBusinesses,
+  UpdateBusiness,
 } from '../../../application/use-cases/businesses/BusinessUseCases.js';
-import { createBusinessSchema, uuidParam } from '../schemas.js';
+import { createBusinessSchema, updateBusinessSchema, uuidParam } from '../schemas.js';
 
 export class BusinessController {
   constructor(
@@ -13,6 +14,7 @@ export class BusinessController {
     private readonly listBusinesses: ListBusinesses,
     private readonly getBusiness: GetBusiness,
     private readonly deleteBusiness: DeleteBusiness,
+    private readonly updateBusiness: UpdateBusiness,
   ) {}
 
   list = async (req: Request, res: Response) => {
@@ -28,6 +30,12 @@ export class BusinessController {
   show = async (req: Request, res: Response) => {
     const { id } = uuidParam.parse(req.params);
     res.json((await this.getBusiness.execute(id, req.userId!)).toJSON());
+  };
+
+  update = async (req: Request, res: Response) => {
+    const { id } = uuidParam.parse(req.params);
+    const business = await this.updateBusiness.execute(id, req.userId!, updateBusinessSchema.parse(req.body));
+    res.json(business.toJSON());
   };
 
   remove = async (req: Request, res: Response) => {

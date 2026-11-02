@@ -49,6 +49,18 @@ describe('Review', () => {
 });
 
 describe('Business', () => {
+  it('se edita con las mismas reglas de creación y conserva dueño e ID', () => {
+    const b = Business.create({ ownerId: 'u1', name: 'Café Galeras', category: 'cafeteria', city: 'Pasto' });
+    const id = b.id;
+    b.update({ name: '  Café Galeras Centro ', city: '' });
+    expect(b.name).toBe('Café Galeras Centro');
+    expect(b.city).toBeNull();
+    expect(b.category).toBe('cafeteria');
+    expect([b.id, b.ownerId]).toEqual([id, 'u1']);
+    expect(() => b.update({ name: 'X' })).toThrow(ValidationError);
+    expect(b.name).toBe('Café Galeras Centro'); // un cambio inválido no deja la entidad a medias
+  });
+
   it('solo su dueño puede operarlo (y el error no revela que existe)', () => {
     const b = Business.create({ ownerId: 'u1', name: 'Café Galeras', category: 'cafeteria' });
     expect(() => b.assertOwnedBy('u1')).not.toThrow();

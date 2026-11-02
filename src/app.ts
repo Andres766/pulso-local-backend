@@ -53,7 +53,7 @@ export function createApp(c: AppDependencies): Express {
     cors({
       origin: config.FRONTEND_ORIGIN,
       credentials: true,
-      methods: ['GET', 'POST', 'DELETE'],
+      methods: ['GET', 'POST', 'PATCH', 'DELETE'],
       allowedHeaders: ['Content-Type', CSRF_HEADER],
       maxAge: 600,
     }),

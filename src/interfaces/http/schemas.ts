@@ -33,6 +33,11 @@ export const createBusinessSchema = z
   })
   .strict();
 
+export const updateBusinessSchema = createBusinessSchema
+  .partial()
+  .strict()
+  .refine((v) => Object.keys(v).length > 0, { message: 'Indica al menos un campo para actualizar' });
+
 export const pasteReviewsSchema = z
   .object({
     text: z.string().min(3).max(200_000),

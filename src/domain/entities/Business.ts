@@ -13,10 +13,40 @@ export interface BusinessProps {
   createdAt: Date;
 }
 
-export class Business {
-  private constructor(private readonly props: BusinessProps) {}
+export interface BusinessDetails {
+  name: string;
+  category: BusinessCategory;
+  city?: string | null;
+}
 
-  static create(input: { ownerId: string; name: string; category: BusinessCategory; city?: string | null }): Business {
+export class Business {
+  private constructor(private props: BusinessProps) {}
+
+  static create(input: BusinessDetails & { ownerId: string }): Business {
+    return new Business({
+      id: randomUUID(),
+      ownerId: input.ownerId,
+      ...Business.validate(input),
+      createdAt: new Date(),
+    });
+  }
+
+  /**
+   * Cambia los datos editables. El dueño y el ID son inmutables: no se pueden "transferir"
+   * negocios por esta vía. Las mismas reglas de create() aplican a la edición.
+   */
+  update(changes: Partial<BusinessDetails>): void {
+    this.props = {
+      ...this.props,
+      ...Business.validate({
+        name: changes.name ?? this.props.name,
+        category: changes.category ?? this.props.category,
+        city: changes.city === undefined ? this.props.city : changes.city,
+      }),
+    };
+  }
+
+  private static validate(input: BusinessDetails): Pick<BusinessProps, 'name' | 'category' | 'city'> {
     const name = input.name.trim();
     if (name.length < 2 || name.length > 120) {
       throw new ValidationError('El nombre del negocio debe tener entre 2 y 120 caracteres');
@@ -24,15 +54,7 @@ export class Business {
     if (!BUSINESS_CATEGORIES.includes(input.category)) {
       throw new ValidationError('Categoría de negocio no válida');
     }
-    const city = input.city?.trim() || null;
-    return new Business({
-      id: randomUUID(),
-      ownerId: input.ownerId,
-      name,
-      category: input.category,
-      city,
-      createdAt: new Date(),
-    });
+    return { name, category: input.category, city: input.city?.trim() || null };
   }
 
   static restore(props: BusinessProps): Business {

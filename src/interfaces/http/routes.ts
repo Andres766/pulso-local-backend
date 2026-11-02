@@ -39,6 +39,7 @@ export function createApiRouter(c: AppDependencies): Router {
   router.get('/businesses', auth, c.businessController.list);
   router.post('/businesses', auth, c.businessController.create);
   router.get('/businesses/:id', auth, c.businessController.show);
+  router.patch('/businesses/:id', auth, c.businessController.update);
   router.delete('/businesses/:id', auth, c.businessController.remove);
 
   // Reseñas

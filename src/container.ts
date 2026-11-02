@@ -7,7 +7,13 @@ import { AuthenticateUser } from './application/use-cases/auth/AuthenticateUser.
 import { GetCurrentUser } from './application/use-cases/auth/GetCurrentUser.js';
 import { RegisterUser } from './application/use-cases/auth/RegisterUser.js';
 import { BusinessAccess } from './application/use-cases/businesses/BusinessAccess.js';
-import { CreateBusiness, DeleteBusiness, GetBusiness, ListBusinesses } from './application/use-cases/businesses/BusinessUseCases.js';
+import {
+  CreateBusiness,
+  DeleteBusiness,
+  GetBusiness,
+  ListBusinesses,
+  UpdateBusiness,
+} from './application/use-cases/businesses/BusinessUseCases.js';
 import { ClearReviews, ExportReviews, ImportReviews, ListReviews } from './application/use-cases/reviews/ReviewUseCases.js';
 import type { AppConfig } from './config/env.js';
 import type { ReviewAnalyzer } from './domain/ports/ReviewAnalyzer.js';
@@ -90,6 +96,7 @@ export class Container implements AppDependencies {
       new ListBusinesses(businesses),
       new GetBusiness(access),
       new DeleteBusiness(access, businesses),
+      new UpdateBusiness(access, businesses),
     );
     this.reviewController = new ReviewController(
       new ImportReviews(access, reviews),
