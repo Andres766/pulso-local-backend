@@ -1,56 +1,16 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { betaZodOutputFormat } from '@anthropic-ai/sdk/helpers/beta/zod';
-import { z } from 'zod';
+import type { z } from 'zod';
 import { AnalyzerError } from '../../domain/errors/DomainError.js';
-import {
-  RECOMMENDATION_PRIORITIES,
-  type BusinessContext,
-  type InsightStats,
-  type RecommendationDraft,
-  type ReviewClassification,
-  type ReviewText,
-  type TopicDefinition,
-} from '../../domain/model/Insight.js';
-import type { ReviewAnalyzer } from '../../domain/ports/ReviewAnalyzer.js';
 import type { Logger } from '../../domain/ports/Services.js';
-import { SENTIMENT_LABELS, Sentiment } from '../../domain/value-objects/Sentiment.js';
-import { SYSTEM_PROMPT, classificationPrompt, recommendationPrompt, topicDiscoveryPrompt } from './prompts.js';
-
-// Esquemas de salida estructurada: la API garantiza JSON con esta forma y el SDK lo valida con Zod.
-const TopicsOutput = z.object({
-  topics: z.array(z.object({ key: z.string(), name: z.string(), description: z.string() })),
-});
-
-const ClassificationOutput = z.object({
-  results: z.array(
-    z.object({
-      id: z.string(),
-      sentiment: z.enum(SENTIMENT_LABELS),
-      score: z.number(),
-      topics: z.array(z.string()),
-    }),
-  ),
-});
-
-const RecommendationsOutput = z.object({
-  recommendations: z.array(
-    z.object({
-      title: z.string(),
-      detail: z.string(),
-      priority: z.enum(RECOMMENDATION_PRIORITIES),
-      topic_key: z.string().nullable(),
-    }),
-  ),
-});
-
-type Effort = 'low' | 'medium' | 'high';
+import { LlmReviewAnalyzer, type Effort } from './LlmReviewAnalyzer.js';
+import { SYSTEM_PROMPT } from './prompts.js';
 
 /**
  * Adaptador (patrón Adapter) entre el puerto ReviewAnalyzer y la API de Claude.
  * Toda la dependencia del SDK de Anthropic vive en este archivo.
  */
-export class ClaudeReviewAnalyzer implements ReviewAnalyzer {
-  readonly batchSize = 40;
+export class ClaudeReviewAnalyzer extends LlmReviewAnalyzer {
   private readonly client: Anthropic;
 
   constructor(
@@ -58,6 +18,7 @@ export class ClaudeReviewAnalyzer implements ReviewAnalyzer {
     private readonly model: string,
     private readonly logger: Logger,
   ) {
+    super();
     this.client = new Anthropic({ apiKey, maxRetries: 3, timeout: 180_000 });
   }
 
@@ -65,40 +26,7 @@ export class ClaudeReviewAnalyzer implements ReviewAnalyzer {
     return `claude:${this.model}`;
   }
 
-  async discoverTopics(
-    sample: readonly ReviewText[],
-    context: BusinessContext,
-    previousTopics: readonly TopicDefinition[] = [],
-  ): Promise<TopicDefinition[]> {
-    const out = await this.ask(topicDiscoveryPrompt(sample, context, previousTopics), TopicsOutput, 'medium', 'descubrir temas');
-    return out.topics;
-  }
-
-  async classify(batch: readonly ReviewText[], topics: readonly TopicDefinition[]): Promise<ReviewClassification[]> {
-    // Alias cortos (r1, r2…) en lugar de UUID: menos tokens y el modelo no ve IDs internos.
-    const aliased = batch.map((review, i) => ({ alias: `r${i + 1}`, review }));
-    const byAlias = new Map(aliased.map((a) => [a.alias, a.review.id]));
-
-    const out = await this.ask(classificationPrompt(aliased, topics), ClassificationOutput, 'low', 'clasificar reseñas');
-
-    return out.results.flatMap((r) => {
-      const reviewId = byAlias.get(r.id);
-      if (!reviewId) return [];
-      return [{ reviewId, sentiment: Sentiment.of(r.sentiment, r.score), topicKeys: r.topics }];
-    });
-  }
-
-  async recommend(stats: InsightStats, context: BusinessContext): Promise<RecommendationDraft[]> {
-    const out = await this.ask(recommendationPrompt(stats, context), RecommendationsOutput, 'high', 'generar recomendaciones');
-    return out.recommendations.slice(0, 6).map((r) => ({
-      title: r.title.trim().slice(0, 120),
-      detail: r.detail.trim().slice(0, 800),
-      priority: r.priority,
-      topicKey: r.topic_key,
-    }));
-  }
-
-  private async ask<T extends z.ZodType>(prompt: string, schema: T, effort: Effort, step: string): Promise<z.infer<T>> {
+  protected async generate<T extends z.ZodType>(prompt: string, schema: T, effort: Effort, step: string): Promise<z.infer<T>> {
     try {
       const response = await this.client.beta.messages.parse({
         model: this.model,

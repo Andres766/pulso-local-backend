@@ -43,15 +43,19 @@ docker compose up -d --build    # http://localhost:8090
 ```
 
 ## IA
-- Con `ANTHROPIC_API_KEY` en `.env`, el análisis usa **Claude** (`claude-opus-5`).
-- Sin clave, usa el **analizador léxico local** en español (gratis y sin red). El dashboard indica qué motor
-  generó cada reporte.
+El motor de IA se elige con `AI_PROVIDER` (por defecto `auto`):
+- Con `GEMINI_API_KEY` en `.env` → **Gemini** (`gemini-3.5-flash`, plan gratuito, con modelo de respaldo).
+- Con `ANTHROPIC_API_KEY` → **Claude** (`claude-opus-5`); tiene prioridad si están las dos.
+- Sin ninguna clave → **analizador léxico local** en español (gratis y sin red).
+
+El dashboard indica qué motor generó cada reporte. La clave de API va **solo** en `.env` o en las variables
+de entorno del servidor; nunca en el código ni en el repositorio.
 
 ## Pruebas
 
 ```bash
 cd backend
-npm test            # 41 pruebas (dominio, casos de uso, infraestructura, HTTP)
+npm test            # 48 pruebas (dominio, casos de uso, infraestructura, IA, HTTP)
 npm run typecheck
 ```
 

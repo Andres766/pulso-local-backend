@@ -18,9 +18,12 @@ const schema = z.object({
   FRONTEND_ORIGIN: z.string().url().default('http://localhost:5180'),
   COOKIE_SECURE: booleanFromString.optional(),
   TRUST_PROXY: booleanFromString.default(false),
-  AI_PROVIDER: z.enum(['auto', 'claude', 'heuristic']).default('auto'),
+  AI_PROVIDER: z.enum(['auto', 'claude', 'gemini', 'heuristic']).default('auto'),
   ANTHROPIC_API_KEY: z.string().optional(),
   CLAUDE_MODEL: z.string().default('claude-opus-5'),
+  GEMINI_API_KEY: z.string().optional(),
+  GEMINI_MODEL: z.string().default('gemini-3.5-flash'),
+  GEMINI_FALLBACK_MODEL: z.string().default('gemini-flash-lite-latest'),
   LOG_LEVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent']).default('info'),
 });
 
@@ -44,5 +47,6 @@ export function loadConfig(source: NodeJS.ProcessEnv = process.env) {
     isProduction,
     cookieSecure: env.COOKIE_SECURE ?? isProduction,
     anthropicApiKey: env.ANTHROPIC_API_KEY?.trim() || undefined,
+    geminiApiKey: env.GEMINI_API_KEY?.trim() || undefined,
   };
 }

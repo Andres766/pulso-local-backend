@@ -31,10 +31,11 @@ una recomendación la calcula el código, no el LLM**. Así el modelo no puede i
 | Frontend | React 19 + TypeScript + Vite + Tailwind CSS 4 | SPA tipada; Tailwind ya se usa en el curso |
 | Backend | Node.js 22 + Express 5 + TypeScript | Express 5 maneja errores `async` de forma nativa |
 | Base de datos | PostgreSQL 17 | Relacional (el modelo lo es), transacciones, `JSONB` para las citas |
-| IA | API de Claude (Anthropic), modelo `claude-opus-5` | Salidas estructuradas validadas con Zod y buen rendimiento en español |
+| IA (en uso) | API de **Gemini** (Google), modelo `gemini-3.5-flash` con respaldo `gemini-flash-lite-latest` | Plan gratuito; salida JSON restringida por esquema y validada con Zod |
+| IA (alternativa) | API de Claude (Anthropic), modelo `claude-opus-5` | Mismo contrato: se activa solo con poner `ANTHROPIC_API_KEY` |
 | IA de respaldo | Analizador léxico propio en español | Funciona sin red ni costo, y sirve para las pruebas automáticas |
 | Infraestructura | Docker Compose (db + api + nginx) | Todo el entorno se levanta con un comando |
-| Pruebas | Vitest + Supertest | 41 pruebas: dominio, casos de uso, infraestructura e integración HTTP |
+| Pruebas | Vitest + Supertest | 48 pruebas: dominio, casos de uso, infraestructura, proveedores de IA e integración HTTP |
 
 ---
 
@@ -67,7 +68,7 @@ una recomendación la calcula el código, no el LLM**. Así el modelo no puede i
 └──────────┬──────────────────────────────────────┬─────────────────┘
            │ SQL parametrizado                    │ HTTPS
 ┌──────────▼──────────┐                 ┌─────────▼─────────┐
-│  PostgreSQL         │                 │  API de Claude    │
+│  PostgreSQL         │                 │ API Gemini/Claude │
 └─────────────────────┘                 └───────────────────┘
 ```
 
@@ -186,9 +187,10 @@ la reintenta en el servidor con otro modelo.
 | Patrón | Dónde | Qué resuelve |
 |---|---|---|
 | **Arquitectura hexagonal (puertos y adaptadores)** | Toda la estructura del backend | El dominio no depende de frameworks; se prueba sin base de datos |
-| **Strategy** | `ReviewAnalyzer` → `ClaudeReviewAnalyzer` / `HeuristicReviewAnalyzer` | Cambiar el motor de IA sin tocar los casos de uso |
+| **Strategy** | `ReviewAnalyzer` → `GeminiReviewAnalyzer` / `ClaudeReviewAnalyzer` / `HeuristicReviewAnalyzer` | Cambiar el motor de IA sin tocar los casos de uso |
+| **Template Method** | `LlmReviewAnalyzer` (abstracta) define el algoritmo; cada LLM solo implementa `generate()` | Gemini y Claude comparten prompts, alias y traducción al dominio sin duplicar código |
 | **Factory** | `createReviewAnalyzer()` | Elige la estrategia según la configuración |
-| **Adapter** | `ClaudeReviewAnalyzer`, `CsvReviewParser` | Traduce APIs y formatos externos al lenguaje del dominio |
+| **Adapter** | `GeminiReviewAnalyzer`, `ClaudeReviewAnalyzer`, `CsvReviewParser` | Traduce APIs y formatos externos al lenguaje del dominio |
 | **Repository + Data Mapper** | `Pg*Repository` con `toDomain()` | Separa la persistencia de las entidades |
 | **Unit of Work** (transacción) | `completeWithResults()`, `Database.transaction()` | Un análisis se guarda completo o no se guarda |
 | **State (máquina de estados)** | `AnalysisRun`: pending → running → completed / failed | Imposible quedar en un estado incoherente |
@@ -205,12 +207,12 @@ la reintenta en el servidor con otro modelo.
   `restore()` (reconstruye desde la BD). El estado solo se lee con getters y solo cambia mediante métodos con reglas
   (`run.start()`, `run.fail()`).
 - **Abstracción:** los casos de uso dependen de interfaces (`UserRepository`, `ReviewAnalyzer`), no de clases concretas.
-- **Polimorfismo:** `ClaudeReviewAnalyzer` y `HeuristicReviewAnalyzer` se usan de manera intercambiable; en las
-  pruebas se inyectan analizadores falsos que fallan o que "alucinan".
-- **Herencia:** jerarquía `DomainError` → `ValidationError`, `NotFoundError`, `ConflictError`, `AnalyzerError`,
+- **Polimorfismo:** `GeminiReviewAnalyzer`, `ClaudeReviewAnalyzer` y `HeuristicReviewAnalyzer` se usan de manera
+  intercambiable; en las pruebas se inyectan analizadores y clientes de API falsos que fallan, se saturan o "alucinan".
+- **Herencia:** `LlmReviewAnalyzer` (clase abstracta) → `GeminiReviewAnalyzer` y `ClaudeReviewAnalyzer`; jerarquía `DomainError` → `ValidationError`, `NotFoundError`, `ConflictError`, `AnalyzerError`,
   `AuthenticationError`. El manejador HTTP traduce cada tipo a un código de estado.
-- **SOLID:** responsabilidad única (un caso de uso por clase), abierto/cerrado (un nuevo proveedor de IA se agrega
-  sin modificar código existente), inversión de dependencias (`container.ts`).
+- **SOLID:** responsabilidad única (un caso de uso por clase), abierto/cerrado (Gemini se agregó como una subclase
+  nueva sin modificar los casos de uso), inversión de dependencias (`container.ts`).
 
 ---
 
@@ -290,8 +292,14 @@ la reintenta en el servidor con otro modelo.
   subida de archivos y flujo completo. `createApp` depende de la interfaz `AppDependencies` (no de la clase concreta).
 - [x] Rediseño visual del frontend.
 
+**Avance 3 (2 nov)**
+- [x] **IA real con Gemini (plan gratuito):** nuevo adaptador `GeminiReviewAnalyzer`. El SDK reintenta con espera
+  exponencial ante 429/503 y, si el modelo principal sigue saturado, se usa el modelo de respaldo.
+- [x] Refactor con **Template Method**: `LlmReviewAnalyzer` concentra la lógica común de los proveedores LLM.
+- [x] Probado contra la API real: 44 reseñas analizadas en ~50 s; la reseña con *prompt injection* no alteró el resultado.
+
 **Pendiente**
-1. Probar el pipeline con una clave real de Claude y medir su exactitud frente al heurístico (~100 reseñas etiquetadas a mano).
+1. Medir la exactitud de Gemini frente al heurístico con ~100 reseñas etiquetadas a mano.
 2. Cola persistente (BullMQ + Redis) en lugar de la cola en memoria.
 3. Pruebas end-to-end del frontend (Playwright).
 4. Rate limit por IP real detrás del proxy de Vercel.
