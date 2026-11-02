@@ -11,6 +11,7 @@ import type { AuthController } from './interfaces/http/controllers/AuthControlle
 import type { BusinessController } from './interfaces/http/controllers/BusinessController.js';
 import type { ReviewController } from './interfaces/http/controllers/ReviewController.js';
 import { errorHandler, notFoundHandler } from './interfaces/http/middlewares/errorHandler.js';
+import { genRequestId } from './interfaces/http/middlewares/requestId.js';
 import { apiLimiter, CSRF_HEADER, requireCsrfHeader } from './interfaces/http/middlewares/security.js';
 import { createApiRouter } from './interfaces/http/routes.js';
 
@@ -39,7 +40,7 @@ export function createApp(c: AppDependencies): Express {
   app.disable('x-powered-by');
   if (config.TRUST_PROXY) app.set('trust proxy', 1);
 
-  app.use(pinoHttp({ logger: c.logger, autoLogging: { ignore: (req) => req.url === '/api/health' } }));
+  app.use(pinoHttp({ logger: c.logger, genReqId: genRequestId, autoLogging: { ignore: (req) => req.url === '/api/health' } }));
 
   // Cabeceras de seguridad: CSP estricta (la API solo devuelve JSON), HSTS, nosniff, frameguard…
   app.use(
@@ -56,6 +57,7 @@ export function createApp(c: AppDependencies): Express {
       credentials: true,
       methods: ['GET', 'POST', 'PATCH', 'DELETE'],
       allowedHeaders: ['Content-Type', CSRF_HEADER],
+      exposedHeaders: ['X-Request-Id'],
       maxAge: 600,
     }),
   );

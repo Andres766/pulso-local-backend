@@ -85,5 +85,6 @@ export const errorHandler: ErrorRequestHandler = (err, req, res, _next) => {
   }
 
   req.log?.error({ err }, 'Error no controlado');
-  res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: 'Ocurrió un error interno' } });
+  // Sin detalles internos: solo el ID de la petición, para que soporte la encuentre en los logs.
+  res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: 'Ocurrió un error interno', requestId: req.id } });
 };

@@ -36,6 +36,7 @@ import { AnalysisController } from '../../src/interfaces/http/controllers/Analys
 import { AuthController } from '../../src/interfaces/http/controllers/AuthController.js';
 import { BusinessController } from '../../src/interfaces/http/controllers/BusinessController.js';
 import { ReviewController } from '../../src/interfaces/http/controllers/ReviewController.js';
+import { errorHandler } from '../../src/interfaces/http/middlewares/errorHandler.js';
 import { FakeHasher, InMemoryAnalyses, InMemoryBusinesses, InMemoryReviews, InMemoryUsers, silentLogger } from '../fakes.js';
 
 /**
@@ -132,6 +133,16 @@ describe('API HTTP', () => {
       expect(res.headers['content-security-policy']).toContain("default-src 'none'");
       expect(res.headers['x-content-type-options']).toBe('nosniff');
       expect(res.headers['cache-control']).toBe('no-store');
+    });
+
+    it('cada respuesta lleva un X-Request-Id; uno entrante seguro se reutiliza y uno malicioso se reemplaza', async () => {
+      const fresh = await request(app).get('/api/health');
+      expect(fresh.headers['x-request-id']).toMatch(/^[0-9a-f-]{36}$/);
+      expect((await request(app).get('/api/health').set('X-Request-Id', 'proxy-abc-12345')).headers['x-request-id']).toBe(
+        'proxy-abc-12345',
+      );
+      const evil = await request(app).get('/api/health').set('X-Request-Id', '<script>"INFO falso" en el log');
+      expect(evil.headers['x-request-id']).toMatch(/^[0-9a-f-]{36}$/);
     });
 
     it('responde JSON uniforme ante rutas inexistentes y JSON mal formado', async () => {
@@ -342,5 +353,25 @@ describe('API HTTP', () => {
       expect(exported.headers['content-disposition']).toMatch(/attachment; filename="resenas-cafe-galeras-/);
       expect(exported.text).toContain(`"'=HYPERLINK(""http://evil.co"")"`);
     });
+  });
+});
+
+describe('errorHandler', () => {
+  it('ante un error inesperado responde 500 con el ID de la petición y sin detalles internos', () => {
+    let status = 0;
+    let body: { error: Record<string, unknown> } | undefined;
+    const res = {
+      status(code: number) {
+        status = code;
+        return this;
+      },
+      json(payload: typeof body) {
+        body = payload;
+      },
+    };
+    const req = { id: 'req-123', log: { error() {} } };
+    errorHandler(new Error('password=secreto en la base de datos'), req as never, res as never, () => {});
+    expect(status).toBe(500);
+    expect(body!.error).toEqual({ code: 'INTERNAL_ERROR', message: 'Ocurrió un error interno', requestId: 'req-123' });
   });
 });
