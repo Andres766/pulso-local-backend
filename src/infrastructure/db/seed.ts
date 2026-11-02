@@ -2,7 +2,7 @@ import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { loadConfig } from '../../config/env.js';
-import { Business } from '../../domain/entities/Business.js';
+import { Business, type BusinessCategory } from '../../domain/entities/Business.js';
 import { Review } from '../../domain/entities/Review.js';
 import { User } from '../../domain/entities/User.js';
 import { Email } from '../../domain/value-objects/Email.js';
@@ -16,11 +16,26 @@ import { PgReviewRepository } from './repositories/PgReviewRepository.js';
 import { PgUserRepository } from './repositories/PgUserRepository.js';
 
 /**
- * Datos de demostración (solo desarrollo): usuario demo + "Café Galeras" con 40 reseñas.
+ * Datos de demostración (solo desarrollo y la cuenta demo): un usuario con dos negocios de
+ * rubros distintos, para mostrar que la IA descubre temas diferentes según el tipo de negocio.
+ * Es idempotente: se puede ejecutar varias veces sin duplicar nada.
  * Credenciales: demo@pulsolocal.co / Galeras2026Pasto
  */
 const here = path.dirname(fileURLToPath(import.meta.url));
-const SAMPLE_CSV = path.resolve(here, '../../../samples/resenas_cafe_galeras.csv');
+const SAMPLES_DIR = path.resolve(here, '../../../samples');
+
+const DEMO_USER = { email: 'demo@pulsolocal.co', name: 'Dueño Demo', password: 'Galeras2026Pasto' };
+
+const DEMO_BUSINESSES: { name: string; category: BusinessCategory; city: string; csv: string }[] = [
+  { name: 'Café Galeras', category: 'cafeteria', city: 'Pasto', csv: 'resenas_cafe_galeras.csv' },
+  { name: 'Restaurante El Fogón', category: 'restaurante', city: 'Pasto', csv: 'resenas_restaurante_fogon.csv' },
+];
+
+/** Las fechas de los CSV de ejemplo vienen como dd/mm/aaaa. */
+function parseLocalDate(raw: unknown): Date | null {
+  const [d, m, y] = String(raw).split('/').map(Number);
+  return d && m && y ? new Date(y, m - 1, d) : null;
+}
 
 async function seed(): Promise<void> {
   const config = loadConfig();
@@ -32,35 +47,39 @@ async function seed(): Promise<void> {
     const users = new PgUserRepository(db);
     const businesses = new PgBusinessRepository(db);
     const reviews = new PgReviewRepository(db);
+    const parser = new CsvReviewParser();
 
-    const email = Email.create('demo@pulsolocal.co');
+    const email = Email.create(DEMO_USER.email);
     let user = await users.findByEmail(email);
     if (!user) {
-      user = User.register({ email, name: 'Dueño Demo', passwordHash: await new BcryptPasswordHasher().hash('Galeras2026Pasto') });
+      user = User.register({ email, name: DEMO_USER.name, passwordHash: await new BcryptPasswordHasher().hash(DEMO_USER.password) });
       await users.save(user);
     }
 
-    let business = (await businesses.listByOwner(user.id)).find((b) => b.name === 'Café Galeras');
-    if (!business) {
-      business = Business.create({ ownerId: user.id, name: 'Café Galeras', category: 'cafeteria', city: 'Pasto' });
-      await businesses.save(business);
-    }
+    const owned = await businesses.listByOwner(user.id);
+    for (const demo of DEMO_BUSINESSES) {
+      let business = owned.find((b) => b.name === demo.name);
+      if (!business) {
+        business = Business.create({ ownerId: user.id, name: demo.name, category: demo.category, city: demo.city });
+        await businesses.save(business);
+      }
 
-    const rows = new CsvReviewParser().parse(await readFile(SAMPLE_CSV, 'utf8'));
-    const businessId = business.id;
-    const inserted = await reviews.saveMany(
-      rows.map((r) => {
-        const [d, m, y] = String(r.date).split('/').map(Number);
-        return Review.create({
-          businessId,
-          content: r.content,
-          rating: Rating.tryParse(r.rating),
-          authoredAt: new Date(y!, m! - 1, d!),
-          source: 'csv',
-        });
-      }),
-    );
-    console.log(`Seed listo: demo@pulsolocal.co / Galeras2026Pasto · ${inserted} reseñas nuevas en "${business.name}"`);
+      const businessId = business.id;
+      const rows = parser.parse(await readFile(path.join(SAMPLES_DIR, demo.csv), 'utf8'));
+      const inserted = await reviews.saveMany(
+        rows.map((r) =>
+          Review.create({
+            businessId,
+            content: r.content,
+            rating: Rating.tryParse(r.rating),
+            authoredAt: parseLocalDate(r.date),
+            source: 'csv',
+          }),
+        ),
+      );
+      console.log(`  · ${demo.name}: ${inserted} reseñas nuevas (de ${rows.length})`);
+    }
+    console.log(`Seed listo: ${DEMO_USER.email} / ${DEMO_USER.password}`);
   } finally {
     await db.close();
   }
