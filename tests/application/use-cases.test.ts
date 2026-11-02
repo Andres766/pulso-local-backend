@@ -222,6 +222,45 @@ describe('Importación y análisis', () => {
     expect(d.comparison!.topics.find((t) => t.key === 'tiempo_espera')?.trend).toBe('improved');
   });
 
+  describe('consumo del LLM', () => {
+    const metered = (failAtRecommend: boolean): ReviewAnalyzer => {
+      const heuristic = new HeuristicReviewAnalyzer();
+      return {
+        providerName: 'medido',
+        batchSize: 10,
+        discoverTopics: async (_s, _c, _p, meter) => {
+          meter?.record(100, 10);
+          return heuristic.discoverTopics();
+        },
+        classify: async (batch, _t, meter) => {
+          meter?.record(200, 20);
+          return heuristic.classify(batch);
+        },
+        recommend: async (stats, ctx, meter) => {
+          meter?.record(300, 30);
+          if (failAtRecommend) throw new AnalyzerError('Credencial inválida');
+          return heuristic.recommend(stats, ctx);
+        },
+      };
+    };
+
+    it('guarda en el análisis el total de llamadas y tokens', async () => {
+      const { importReviews, requestAnalysis, worker } = build(metered(false));
+      await importReviews.execute(businessId, 'owner', [{ content: 'Muy rico' }, { content: 'Muy lento' }], 'manual');
+      const run = await requestAnalysis.execute(businessId, 'owner');
+      await worker.drain();
+      expect((await analyses.findById(run.id))!.usage).toEqual({ calls: 3, inputTokens: 600, outputTokens: 60 });
+    });
+
+    it('un análisis fallido también registra los tokens que alcanzó a gastar', async () => {
+      const { importReviews, requestAnalysis, worker } = build(metered(true));
+      await importReviews.execute(businessId, 'owner', [{ content: 'Muy rico' }], 'manual');
+      const run = await requestAnalysis.execute(businessId, 'owner');
+      await worker.drain();
+      expect((await analyses.findById(run.id))!).toMatchObject({ status: 'failed', usage: { calls: 3, inputTokens: 600 } });
+    });
+  });
+
   describe('cola persistente', () => {
     afterEach(() => vi.useRealTimers());
 

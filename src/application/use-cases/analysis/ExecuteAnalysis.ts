@@ -2,6 +2,7 @@ import type { AnalysisRun } from '../../../domain/entities/AnalysisRun.js';
 import type { Review } from '../../../domain/entities/Review.js';
 import { AnalyzerError, NotFoundError } from '../../../domain/errors/DomainError.js';
 import type { BusinessContext, ReviewClassification, ReviewText, TopicDefinition } from '../../../domain/model/Insight.js';
+import { UsageMeter } from '../../../domain/model/LlmUsage.js';
 import type { AnalysisRepository, BusinessRepository, ReviewRepository } from '../../../domain/ports/Repositories.js';
 import type { ReviewAnalyzer } from '../../../domain/ports/ReviewAnalyzer.js';
 import type { Logger } from '../../../domain/ports/Services.js';
@@ -37,6 +38,7 @@ export class ExecuteAnalysis {
    */
   async process(run: AnalysisRun): Promise<void> {
     const startedAt = Date.now();
+    const meter = new UsageMeter();
     try {
       const business = await this.businesses.findById(run.businessId);
       if (!business) throw new NotFoundError('Negocio no encontrado');
@@ -45,12 +47,15 @@ export class ExecuteAnalysis {
       const reviews = (await this.reviews.listForAnalysis(business.id, this.maxReviews)).map(ExecuteAnalysis.toText);
 
       const previousTopics = await this.previousTaxonomy(business.id);
-      const topics = this.sanitizeTopics(await this.analyzer.discoverTopics(ExecuteAnalysis.sample(reviews), context, previousTopics));
-      const classifications = await this.classifyAll(reviews, topics);
+      const topics = this.sanitizeTopics(
+        await this.analyzer.discoverTopics(ExecuteAnalysis.sample(reviews), context, previousTopics, meter),
+      );
+      const classifications = await this.classifyAll(reviews, topics, meter);
       const stats = this.aggregator.aggregate(reviews, topics, classifications);
-      const drafts = await this.analyzer.recommend(stats, context);
+      const drafts = await this.analyzer.recommend(stats, context, meter);
       const recommendations = this.aggregator.rankRecommendations(drafts, stats);
 
+      run.recordUsage(meter.total);
       run.complete();
       await this.analyses.completeWithResults(run, {
         classifications,
@@ -59,10 +64,18 @@ export class ExecuteAnalysis {
         sentiment: stats.sentiment,
       });
       this.logger.info(
-        { runId: run.id, attempt: run.attempts, reviews: reviews.length, topics: stats.topics.length, ms: Date.now() - startedAt },
+        {
+          runId: run.id,
+          attempt: run.attempts,
+          reviews: reviews.length,
+          topics: stats.topics.length,
+          usage: run.usage,
+          ms: Date.now() - startedAt,
+        },
         'Análisis completado',
       );
     } catch (err) {
+      run.recordUsage(meter.total);
       const message = err instanceof AnalyzerError ? err.message : 'Ocurrió un error inesperado durante el análisis. Intenta de nuevo.';
       if (err instanceof AnalyzerError && err.retryable && run.canRetry) {
         const delayMs = RETRY_BASE_DELAY_MS * run.attempts;
@@ -85,7 +98,7 @@ export class ExecuteAnalysis {
   }
 
   /** Clasifica en lotes con concurrencia limitada (no saturar la API ni el rate limit). */
-  private async classifyAll(reviews: ReviewText[], topics: TopicDefinition[]): Promise<ReviewClassification[]> {
+  private async classifyAll(reviews: ReviewText[], topics: TopicDefinition[], meter: UsageMeter): Promise<ReviewClassification[]> {
     const batches: ReviewText[][] = [];
     for (let i = 0; i < reviews.length; i += this.analyzer.batchSize) {
       batches.push(reviews.slice(i, i + this.analyzer.batchSize));
@@ -99,7 +112,7 @@ export class ExecuteAnalysis {
       while (next < batches.length) {
         const batch = batches[next++]!;
         const ids = new Set(batch.map((r) => r.id));
-        const output = await this.analyzer.classify(batch, topics);
+        const output = await this.analyzer.classify(batch, topics, meter);
         // Defensa ante salidas del modelo: se descartan IDs que no estaban en el lote y temas inventados.
         for (const c of output) {
           if (!ids.has(c.reviewId)) continue;

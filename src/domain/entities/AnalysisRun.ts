@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { ConflictError } from '../errors/DomainError.js';
+import { addUsage, type LlmUsage, ZERO_USAGE } from '../model/LlmUsage.js';
 
 export const ANALYSIS_STATUSES = ['pending', 'running', 'completed', 'failed'] as const;
 export type AnalysisStatus = (typeof ANALYSIS_STATUSES)[number];
@@ -15,6 +16,8 @@ export interface AnalysisRunProps {
   attempts: number;
   /** No antes de esta fecha: permite reintentar con espera tras un error transitorio. */
   availableAt: Date;
+  /** Consumo acumulado del LLM en todos los intentos (los tokens de un intento fallido también se gastaron). */
+  usage: LlmUsage;
   createdAt: Date;
   startedAt: Date | null;
   finishedAt: Date | null;
@@ -54,6 +57,7 @@ export class AnalysisRun {
       error: null,
       attempts: 0,
       availableAt: new Date(),
+      usage: ZERO_USAGE,
       createdAt: new Date(),
       startedAt: null,
       finishedAt: null,
@@ -79,6 +83,10 @@ export class AnalysisRun {
     this.props.error = reason.slice(0, 500);
     this.props.startedAt = null;
     this.props.availableAt = new Date(Date.now() + delayMs);
+  }
+
+  recordUsage(usage: LlmUsage): void {
+    this.props.usage = addUsage(this.props.usage, usage);
   }
 
   get canRetry(): boolean {
@@ -133,6 +141,9 @@ export class AnalysisRun {
   get availableAt(): Date {
     return this.props.availableAt;
   }
+  get usage(): LlmUsage {
+    return this.props.usage;
+  }
   get createdAt(): Date {
     return this.props.createdAt;
   }
@@ -151,6 +162,7 @@ export class AnalysisRun {
       reviewCount: this.reviewCount,
       error: this.error,
       attempts: this.attempts,
+      usage: this.usage,
       createdAt: this.createdAt.toISOString(),
       startedAt: this.startedAt?.toISOString() ?? null,
       finishedAt: this.finishedAt?.toISOString() ?? null,

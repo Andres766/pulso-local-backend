@@ -8,6 +8,7 @@ import {
   type ReviewText,
   type TopicDefinition,
 } from '../../domain/model/Insight.js';
+import type { UsageMeter } from '../../domain/model/LlmUsage.js';
 import type { ReviewAnalyzer } from '../../domain/ports/ReviewAnalyzer.js';
 import { SENTIMENT_LABELS, Sentiment } from '../../domain/value-objects/Sentiment.js';
 import { classificationPrompt, recommendationPrompt, topicDiscoveryPrompt } from './prompts.js';
@@ -59,23 +60,36 @@ export abstract class LlmReviewAnalyzer implements ReviewAnalyzer {
   abstract readonly providerName: string;
 
   /** Llama al modelo y devuelve la salida YA validada contra `schema`; lanza AnalyzerError si falla. */
-  protected abstract generate<T extends z.ZodType>(prompt: string, schema: T, effort: Effort, step: string): Promise<z.infer<T>>;
+  protected abstract generate<T extends z.ZodType>(
+    prompt: string,
+    schema: T,
+    effort: Effort,
+    step: string,
+    meter?: UsageMeter,
+  ): Promise<z.infer<T>>;
 
   async discoverTopics(
     sample: readonly ReviewText[],
     context: BusinessContext,
     previousTopics: readonly TopicDefinition[] = [],
+    meter?: UsageMeter,
   ): Promise<TopicDefinition[]> {
-    const out = await this.generate(topicDiscoveryPrompt(sample, context, previousTopics), TopicsOutput, 'medium', 'descubrir temas');
+    const out = await this.generate(
+      topicDiscoveryPrompt(sample, context, previousTopics),
+      TopicsOutput,
+      'medium',
+      'descubrir temas',
+      meter,
+    );
     return out.topics;
   }
 
-  async classify(batch: readonly ReviewText[], topics: readonly TopicDefinition[]): Promise<ReviewClassification[]> {
+  async classify(batch: readonly ReviewText[], topics: readonly TopicDefinition[], meter?: UsageMeter): Promise<ReviewClassification[]> {
     // Alias cortos (r1, r2…) en lugar de UUID: menos tokens y el modelo no ve IDs internos.
     const aliased = batch.map((review, i) => ({ alias: `r${i + 1}`, review }));
     const byAlias = new Map(aliased.map((a) => [a.alias, a.review.id]));
 
-    const out = await this.generate(classificationPrompt(aliased, topics), ClassificationOutput, 'low', 'clasificar reseñas');
+    const out = await this.generate(classificationPrompt(aliased, topics), ClassificationOutput, 'low', 'clasificar reseñas', meter);
 
     return out.results.flatMap((r) => {
       const reviewId = byAlias.get(r.id);
@@ -84,8 +98,8 @@ export abstract class LlmReviewAnalyzer implements ReviewAnalyzer {
     });
   }
 
-  async recommend(stats: InsightStats, context: BusinessContext): Promise<RecommendationDraft[]> {
-    const out = await this.generate(recommendationPrompt(stats, context), RecommendationsOutput, 'high', 'generar recomendaciones');
+  async recommend(stats: InsightStats, context: BusinessContext, meter?: UsageMeter): Promise<RecommendationDraft[]> {
+    const out = await this.generate(recommendationPrompt(stats, context), RecommendationsOutput, 'high', 'generar recomendaciones', meter);
     return out.recommendations.slice(0, 6).map((r) => ({
       title: r.title.trim().slice(0, 120),
       detail: r.detail.trim().slice(0, 800),

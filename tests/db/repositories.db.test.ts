@@ -39,7 +39,7 @@ describe.skipIf(!url)('Repositorios PostgreSQL', () => {
   beforeAll(async () => {
     db = new Database(url!);
     await db.query('DROP SCHEMA public CASCADE; CREATE SCHEMA public;');
-    expect(await runMigrations(db)).toHaveLength(4);
+    expect(await runMigrations(db)).toHaveLength(5);
     users = new PgUserRepository(db);
     businesses = new PgBusinessRepository(db);
     reviews = new PgReviewRepository(db);
@@ -147,6 +147,7 @@ describe.skipIf(!url)('Repositorios PostgreSQL', () => {
     const run = AnalysisRun.request({ businessId: business.id, provider: 'test', reviewCount: 2 });
     await analyses.save(run);
     const claimed = (await analyses.claimNext())!;
+    claimed.recordUsage({ calls: 4, inputTokens: 5000, outputTokens: 900 });
     claimed.complete();
     const topic = {
       key: 'espera',
@@ -170,6 +171,7 @@ describe.skipIf(!url)('Repositorios PostgreSQL', () => {
       sentiment: { positive: 1, neutral: 0, negative: 1, averageScore: 0.1 },
     });
 
+    expect((await analyses.findById(claimed.id))!.usage).toEqual({ calls: 4, inputTokens: 5000, outputTokens: 900 });
     const report = (await analyses.getReport(claimed.id))!;
     expect(report.stats.topics[0]).toMatchObject({ key: 'espera', sampleQuotes: ['Lento'] });
     expect(report.recommendations[0]).toMatchObject({ topicKey: 'espera', evidenceShare: 50 });

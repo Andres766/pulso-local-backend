@@ -6,6 +6,7 @@ import type {
   ReviewText,
   TopicDefinition,
 } from '../model/Insight.js';
+import type { UsageMeter } from '../model/LlmUsage.js';
 
 /**
  * Puerto (patrón Strategy) del motor de IA. El caso de uso de análisis depende de esta
@@ -32,9 +33,11 @@ export interface ReviewAnalyzer {
     sample: readonly ReviewText[],
     context: BusinessContext,
     previousTopics?: readonly TopicDefinition[],
+    meter?: UsageMeter,
   ): Promise<TopicDefinition[]>;
 
-  classify(batch: readonly ReviewText[], topics: readonly TopicDefinition[]): Promise<ReviewClassification[]>;
+  /** `meter` (opcional) acumula el consumo de tokens del análisis en curso. */
+  classify(batch: readonly ReviewText[], topics: readonly TopicDefinition[], meter?: UsageMeter): Promise<ReviewClassification[]>;
 
-  recommend(stats: InsightStats, context: BusinessContext): Promise<RecommendationDraft[]>;
+  recommend(stats: InsightStats, context: BusinessContext, meter?: UsageMeter): Promise<RecommendationDraft[]>;
 }

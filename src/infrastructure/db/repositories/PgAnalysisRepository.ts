@@ -20,6 +20,9 @@ interface RunRow {
   error: string | null;
   attempts: number;
   available_at: Date;
+  llm_calls: number;
+  input_tokens: number;
+  output_tokens: number;
   created_at: Date;
   started_at: Date | null;
   finished_at: Date | null;
@@ -59,10 +62,11 @@ export class PgAnalysisRepository implements AnalysisRepository {
   private static async upsert(db: Queryable, run: AnalysisRun): Promise<void> {
     await db.query(
       `INSERT INTO analysis_runs (id, business_id, status, provider, review_count, error, attempts, available_at,
-                                  created_at, started_at, finished_at)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+                                  created_at, started_at, finished_at, llm_calls, input_tokens, output_tokens)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
        ON CONFLICT (id) DO UPDATE SET status = EXCLUDED.status, error = EXCLUDED.error, attempts = EXCLUDED.attempts,
-         available_at = EXCLUDED.available_at, started_at = EXCLUDED.started_at, finished_at = EXCLUDED.finished_at`,
+         available_at = EXCLUDED.available_at, started_at = EXCLUDED.started_at, finished_at = EXCLUDED.finished_at,
+         llm_calls = EXCLUDED.llm_calls, input_tokens = EXCLUDED.input_tokens, output_tokens = EXCLUDED.output_tokens`,
       [
         run.id,
         run.businessId,
@@ -75,6 +79,9 @@ export class PgAnalysisRepository implements AnalysisRepository {
         run.createdAt,
         run.startedAt,
         run.finishedAt,
+        run.usage.calls,
+        run.usage.inputTokens,
+        run.usage.outputTokens,
       ],
     );
   }
@@ -145,9 +152,23 @@ export class PgAnalysisRepository implements AnalysisRepository {
       const s = results.sentiment;
       await client.query(
         `UPDATE analysis_runs SET status = $2, finished_at = $3, positive_count = $4, neutral_count = $5,
-                negative_count = $6, average_score = $7, review_count = $8, error = $9
+                negative_count = $6, average_score = $7, review_count = $8, error = $9,
+                llm_calls = $10, input_tokens = $11, output_tokens = $12
           WHERE id = $1`,
-        [run.id, run.status, run.finishedAt, s.positive, s.neutral, s.negative, s.averageScore, results.classifications.length, run.error],
+        [
+          run.id,
+          run.status,
+          run.finishedAt,
+          s.positive,
+          s.neutral,
+          s.negative,
+          s.averageScore,
+          results.classifications.length,
+          run.error,
+          run.usage.calls,
+          run.usage.inputTokens,
+          run.usage.outputTokens,
+        ],
       );
 
       const c = results.classifications;
@@ -312,6 +333,7 @@ export class PgAnalysisRepository implements AnalysisRepository {
       error: row.error,
       attempts: row.attempts,
       availableAt: row.available_at,
+      usage: { calls: row.llm_calls, inputTokens: row.input_tokens, outputTokens: row.output_tokens },
       createdAt: row.created_at,
       startedAt: row.started_at,
       finishedAt: row.finished_at,

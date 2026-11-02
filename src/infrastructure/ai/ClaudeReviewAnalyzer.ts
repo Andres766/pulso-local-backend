@@ -2,6 +2,7 @@ import Anthropic from '@anthropic-ai/sdk';
 import { betaZodOutputFormat } from '@anthropic-ai/sdk/helpers/beta/zod';
 import type { z } from 'zod';
 import { AnalyzerError } from '../../domain/errors/DomainError.js';
+import type { UsageMeter } from '../../domain/model/LlmUsage.js';
 import type { Logger } from '../../domain/ports/Services.js';
 import { type Effort, LlmReviewAnalyzer } from './LlmReviewAnalyzer.js';
 import { SYSTEM_PROMPT } from './prompts.js';
@@ -26,7 +27,13 @@ export class ClaudeReviewAnalyzer extends LlmReviewAnalyzer {
     return `claude:${this.model}`;
   }
 
-  protected async generate<T extends z.ZodType>(prompt: string, schema: T, effort: Effort, step: string): Promise<z.infer<T>> {
+  protected async generate<T extends z.ZodType>(
+    prompt: string,
+    schema: T,
+    effort: Effort,
+    step: string,
+    meter?: UsageMeter,
+  ): Promise<z.infer<T>> {
     try {
       const response = await this.client.beta.messages.parse({
         model: this.model,
@@ -41,6 +48,7 @@ export class ClaudeReviewAnalyzer extends LlmReviewAnalyzer {
       });
 
       this.logger.info({ step, model: response.model, stop: response.stop_reason, usage: response.usage }, 'Respuesta de Claude');
+      meter?.record(response.usage.input_tokens, response.usage.output_tokens);
 
       if (response.stop_reason === 'refusal') {
         throw new AnalyzerError('La IA no pudo procesar estas reseñas. Revisa que el contenido sea apropiado.');

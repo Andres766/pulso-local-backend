@@ -1,6 +1,7 @@
 import { ApiError, FinishReason, GoogleGenAI, ThinkingLevel } from '@google/genai';
 import { z } from 'zod';
 import { AnalyzerError } from '../../domain/errors/DomainError.js';
+import type { UsageMeter } from '../../domain/model/LlmUsage.js';
 import type { Logger } from '../../domain/ports/Services.js';
 import { type Effort, LlmReviewAnalyzer } from './LlmReviewAnalyzer.js';
 import { SYSTEM_PROMPT } from './prompts.js';
@@ -53,11 +54,17 @@ export class GeminiReviewAnalyzer extends LlmReviewAnalyzer {
     return `gemini:${this.model}`;
   }
 
-  protected async generate<T extends z.ZodType>(prompt: string, schema: T, effort: Effort, step: string): Promise<z.infer<T>> {
+  protected async generate<T extends z.ZodType>(
+    prompt: string,
+    schema: T,
+    effort: Effort,
+    step: string,
+    meter?: UsageMeter,
+  ): Promise<z.infer<T>> {
     let lastError: unknown;
     for (const model of this.models) {
       try {
-        return await this.call(model, prompt, schema, effort, step);
+        return await this.call(model, prompt, schema, effort, step, meter);
       } catch (err) {
         lastError = err;
         const transient = err instanceof ApiError && (TRANSIENT.has(err.status) || err.status === 404);
@@ -69,7 +76,14 @@ export class GeminiReviewAnalyzer extends LlmReviewAnalyzer {
     throw GeminiReviewAnalyzer.translate(lastError, step);
   }
 
-  private async call<T extends z.ZodType>(model: string, prompt: string, schema: T, effort: Effort, step: string): Promise<z.infer<T>> {
+  private async call<T extends z.ZodType>(
+    model: string,
+    prompt: string,
+    schema: T,
+    effort: Effort,
+    step: string,
+    meter?: UsageMeter,
+  ): Promise<z.infer<T>> {
     const response = await this.client.models.generateContent({
       model,
       contents: prompt,
@@ -82,6 +96,10 @@ export class GeminiReviewAnalyzer extends LlmReviewAnalyzer {
         maxOutputTokens: 16_000,
       },
     });
+
+    // Se anota antes de validar: los tokens se consumieron aunque la respuesta se descarte.
+    const usage = response.usageMetadata;
+    meter?.record(usage?.promptTokenCount, (usage?.candidatesTokenCount ?? 0) + (usage?.thoughtsTokenCount ?? 0));
 
     const candidate = response.candidates?.[0];
     this.logger.info(

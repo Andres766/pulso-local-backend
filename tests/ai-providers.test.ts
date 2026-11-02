@@ -1,6 +1,7 @@
 import { ApiError, FinishReason } from '@google/genai';
 import { describe, expect, it } from 'vitest';
 import { AnalyzerError } from '../src/domain/errors/DomainError.js';
+import { UsageMeter } from '../src/domain/model/LlmUsage.js';
 import { ClaudeReviewAnalyzer } from '../src/infrastructure/ai/ClaudeReviewAnalyzer.js';
 import { type GeminiClient, GeminiReviewAnalyzer } from '../src/infrastructure/ai/GeminiReviewAnalyzer.js';
 import { HeuristicReviewAnalyzer } from '../src/infrastructure/ai/HeuristicReviewAnalyzer.js';
@@ -21,6 +22,7 @@ function fakeClient(replies: Reply[]) {
         if (!next) throw new Error('sin respuestas programadas');
         if (next instanceof Error) throw next;
         return {
+          usageMetadata: { promptTokenCount: 1000, candidatesTokenCount: 200, thoughtsTokenCount: 50 },
           text: next.text,
           modelVersion: params.model,
           candidates: [{ finishReason: next.finishReason ?? FinishReason.STOP }],
@@ -65,6 +67,13 @@ describe('GeminiReviewAnalyzer', () => {
     expect(calls[0]!.config.responseMimeType).toBe('application/json');
     expect(calls[0]!.config.responseJsonSchema).toMatchObject({ type: 'object', required: ['results'] });
     expect(analyzer.providerName).toBe('gemini:modelo-principal');
+  });
+
+  it('anota en el medidor los tokens de entrada y de salida (incluido el razonamiento)', async () => {
+    const { analyzer } = build([{ text: classification }]);
+    const meter = new UsageMeter();
+    await analyzer.classify(reviews, topics, meter);
+    expect(meter.total).toEqual({ calls: 1, inputTokens: 1000, outputTokens: 250 });
   });
 
   it('si el modelo principal está saturado (503), usa el de respaldo', async () => {
