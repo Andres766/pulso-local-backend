@@ -38,6 +38,8 @@ export const changePasswordSchema = z
   })
   .strict();
 
+export const deleteAccountSchema = z.object({ password: z.string().min(1).max(200) }).strict();
+
 export const createBusinessSchema = z
   .object({
     name: z.string().trim().min(2).max(120),

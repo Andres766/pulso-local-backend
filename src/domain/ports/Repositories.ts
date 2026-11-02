@@ -17,6 +17,8 @@ export interface UserRepository {
   findById(id: string): Promise<User | null>;
   findByEmail(email: Email): Promise<User | null>;
   save(user: User): Promise<void>;
+  /** Borra la cuenta y, en cascada, sus negocios, reseñas y análisis. */
+  delete(id: string): Promise<void>;
 }
 
 export interface BusinessRepository {

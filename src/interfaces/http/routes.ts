@@ -35,6 +35,7 @@ export function createApiRouter(c: AppDependencies): Router {
   router.post('/auth/logout', c.authController.logout);
   router.get('/auth/me', auth, c.authController.me);
   router.post('/auth/password', auth, authLimiter, c.authController.changePassword);
+  router.delete('/auth/account', auth, authLimiter, c.authController.deleteAccount);
 
   // Negocios
   router.get('/businesses', auth, c.businessController.list);

@@ -7,7 +7,7 @@ import { MAX_REVIEWS_PER_ANALYSIS, RequestAnalysis } from './application/use-cas
 import { AuthenticateUser } from './application/use-cases/auth/AuthenticateUser.js';
 import { GetCurrentUser } from './application/use-cases/auth/GetCurrentUser.js';
 import { RegisterUser } from './application/use-cases/auth/RegisterUser.js';
-import { ChangePassword, ValidateSession } from './application/use-cases/auth/SessionUseCases.js';
+import { ChangePassword, DeleteAccount, ValidateSession } from './application/use-cases/auth/SessionUseCases.js';
 import { BusinessAccess } from './application/use-cases/businesses/BusinessAccess.js';
 import {
   CreateBusiness,
@@ -95,6 +95,7 @@ export class Container implements AppDependencies {
       new AuthenticateUser(users, hasher, this.tokens),
       new GetCurrentUser(users),
       new ChangePassword(users, hasher, this.tokens),
+      new DeleteAccount(users, hasher),
       { secure: config.cookieSecure, maxAgeMs: this.tokens.maxAgeMs },
     );
     this.businessController = new BusinessController(

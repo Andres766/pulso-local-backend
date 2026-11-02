@@ -2,9 +2,9 @@ import type { CookieOptions, Request, Response } from 'express';
 import type { AuthenticateUser } from '../../../application/use-cases/auth/AuthenticateUser.js';
 import type { GetCurrentUser } from '../../../application/use-cases/auth/GetCurrentUser.js';
 import type { RegisterUser } from '../../../application/use-cases/auth/RegisterUser.js';
-import type { ChangePassword } from '../../../application/use-cases/auth/SessionUseCases.js';
+import type { ChangePassword, DeleteAccount } from '../../../application/use-cases/auth/SessionUseCases.js';
 import { SESSION_COOKIE } from '../middlewares/security.js';
-import { changePasswordSchema, loginSchema, registerSchema } from '../schemas.js';
+import { changePasswordSchema, deleteAccountSchema, loginSchema, registerSchema } from '../schemas.js';
 
 /**
  * Controladores delgados: validan la entrada, llaman al caso de uso y dan forma a la respuesta.
@@ -16,6 +16,7 @@ export class AuthController {
     private readonly authenticateUser: AuthenticateUser,
     private readonly getCurrentUser: GetCurrentUser,
     private readonly changeUserPassword: ChangePassword,
+    private readonly deleteUserAccount: DeleteAccount,
     private readonly cookie: { secure: boolean; maxAgeMs: number },
   ) {}
 
@@ -48,6 +49,14 @@ export class AuthController {
   changePassword = async (req: Request, res: Response) => {
     const token = await this.changeUserPassword.execute(req.userId!, changePasswordSchema.parse(req.body));
     this.setSession(res, token);
+    res.status(204).end();
+  };
+
+  /** Elimina la cuenta y todos sus datos; la cookie de sesión se borra en la misma respuesta. */
+  deleteAccount = async (req: Request, res: Response) => {
+    const { password } = deleteAccountSchema.parse(req.body);
+    await this.deleteUserAccount.execute(req.userId!, password);
+    res.clearCookie(SESSION_COOKIE, this.cookieOptions());
     res.status(204).end();
   };
 

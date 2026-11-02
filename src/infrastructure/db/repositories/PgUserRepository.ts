@@ -38,6 +38,11 @@ export class PgUserRepository implements UserRepository {
     );
   }
 
+  async delete(id: string): Promise<void> {
+    // Las claves foráneas ON DELETE CASCADE eliminan negocios, reseñas, análisis y resultados.
+    await this.db.query('DELETE FROM users WHERE id = $1', [id]);
+  }
+
   private static toDomain(row: UserRow): User {
     return User.restore({
       id: row.id,

@@ -44,3 +44,25 @@ export class ChangePassword {
     return this.tokens.sign({ sub: user.id, email: user.email.value, ver: user.tokenVersion });
   }
 }
+
+/**
+ * Derecho de supresión (Ley 1581 de 2012, Habeas Data): el titular puede eliminar su cuenta y todos
+ * sus datos. Se pide la contraseña para que una sesión olvidada abierta no baste para borrarlo todo.
+ */
+export class DeleteAccount {
+  constructor(
+    private readonly users: UserRepository,
+    private readonly hasher: PasswordHasher,
+  ) {}
+
+  async execute(userId: string, password: string): Promise<void> {
+    const user = await this.users.findById(userId);
+    if (!user) throw new AuthenticationError('Sesión no válida');
+    if (!(await this.hasher.verify(password, user.passwordHash))) {
+      user.registerFailedLogin();
+      await this.users.save(user);
+      throw new AuthenticationError('La contraseña no es correcta');
+    }
+    await this.users.delete(user.id);
+  }
+}

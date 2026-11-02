@@ -29,6 +29,9 @@ export class InMemoryUsers implements UserRepository {
   async save(user: User) {
     this.items.set(user.id, user);
   }
+  async delete(id: string) {
+    this.items.delete(id);
+  }
 }
 
 export class InMemoryBusinesses implements BusinessRepository {

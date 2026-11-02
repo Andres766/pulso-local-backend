@@ -9,7 +9,7 @@ import { RequestAnalysis } from '../../src/application/use-cases/analysis/Reques
 import { AuthenticateUser } from '../../src/application/use-cases/auth/AuthenticateUser.js';
 import { GetCurrentUser } from '../../src/application/use-cases/auth/GetCurrentUser.js';
 import { RegisterUser } from '../../src/application/use-cases/auth/RegisterUser.js';
-import { ChangePassword, ValidateSession } from '../../src/application/use-cases/auth/SessionUseCases.js';
+import { ChangePassword, DeleteAccount, ValidateSession } from '../../src/application/use-cases/auth/SessionUseCases.js';
 import { BusinessAccess } from '../../src/application/use-cases/businesses/BusinessAccess.js';
 import {
   CreateBusiness,
@@ -69,6 +69,7 @@ function buildApp() {
       new AuthenticateUser(users, hasher, tokens),
       new GetCurrentUser(users),
       new ChangePassword(users, hasher, tokens),
+      new DeleteAccount(users, hasher),
       { secure: false, maxAgeMs: tokens.maxAgeMs },
     ),
     businessController: new BusinessController(
@@ -189,6 +190,22 @@ describe('API HTTP', () => {
       expect((await request(app).get('/api/auth/me').set('Cookie', sessionB)).status).toBe(401); // el otro dispositivo
       expect((await login('Galeras2026x')).status).toBe(401);
       expect((await login('NuevaClave2027')).status).toBe(200);
+    });
+
+    it('eliminar la cuenta exige la contraseña y cierra la sesión (el borrado en cascada se prueba contra PostgreSQL)', async () => {
+      const cookie = await register('borrame@cafe.co', 'Galeras2026x');
+      await request(app).post('/api/businesses').set(CSRF).set('Cookie', cookie).send({ name: 'Negocio a borrar', category: 'otro' });
+      const del = (password: string) => request(app).delete('/api/auth/account').set(CSRF).set('Cookie', cookie).send({ password });
+
+      expect((await del('errada-123x')).status).toBe(401);
+      const ok = await del('Galeras2026x');
+      expect(ok.status).toBe(204);
+      expect(ok.get('Set-Cookie')![0]).toMatch(/pulso_session=;/); // la cookie se borra
+
+      expect((await request(app).get('/api/auth/me').set('Cookie', cookie)).status).toBe(401);
+      expect(
+        (await request(app).post('/api/auth/login').set(CSRF).send({ email: 'borrame@cafe.co', password: 'Galeras2026x' })).status,
+      ).toBe(401);
     });
 
     it('rechaza peticiones que modifican estado sin el header anti-CSRF', async () => {
