@@ -14,6 +14,20 @@ jobs:
     name: Lint, tipos y pruebas
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    # PostgreSQL desechable para las pruebas de repositorios (tests/db).
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_DB: pulsolocal_test
+          POSTGRES_USER: pulso
+          POSTGRES_PASSWORD: pulso_ci
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U pulso -d pulsolocal_test"
+          --health-interval 5s --health-timeout 3s --health-retries 10
+    env:
+      TEST_DATABASE_URL: postgres://pulso:pulso_ci@localhost:5432/pulsolocal_test
     steps:
       - uses: actions/checkout@v4
 
@@ -31,7 +45,7 @@ jobs:
       - name: Chequeo de tipos
         run: npm run typecheck
 
-      - name: Pruebas
+      - name: Pruebas (unitarias, HTTP y contra PostgreSQL)
         run: npm test
 
       - name: Auditoría de dependencias de producción
