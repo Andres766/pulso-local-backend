@@ -7,6 +7,7 @@ import { MAX_REVIEWS_PER_ANALYSIS, RequestAnalysis } from './application/use-cas
 import { AuthenticateUser } from './application/use-cases/auth/AuthenticateUser.js';
 import { GetCurrentUser } from './application/use-cases/auth/GetCurrentUser.js';
 import { RegisterUser } from './application/use-cases/auth/RegisterUser.js';
+import { ChangePassword, ValidateSession } from './application/use-cases/auth/SessionUseCases.js';
 import { BusinessAccess } from './application/use-cases/businesses/BusinessAccess.js';
 import {
   CreateBusiness,
@@ -46,6 +47,7 @@ export class Container implements AppDependencies {
   readonly logger: PinoLogger;
   readonly db: Database;
   readonly tokens: JwtTokenService;
+  readonly sessions: ValidateSession;
   readonly analyzer: ReviewAnalyzer;
   readonly analyses: PgAnalysisRepository;
   readonly jobs: PollingJobRunner;
@@ -71,6 +73,7 @@ export class Container implements AppDependencies {
     this.analyses = new PgAnalysisRepository(this.db);
     const hasher = new BcryptPasswordHasher();
     this.tokens = new JwtTokenService(config.JWT_SECRET, config.JWT_EXPIRES_IN_HOURS);
+    this.sessions = new ValidateSession(users);
     this.analyzer = createReviewAnalyzer(config, this.logger);
 
     // Aplicación
@@ -91,6 +94,7 @@ export class Container implements AppDependencies {
       new RegisterUser(users, hasher),
       new AuthenticateUser(users, hasher, this.tokens),
       new GetCurrentUser(users),
+      new ChangePassword(users, hasher, this.tokens),
       { secure: config.cookieSecure, maxAgeMs: this.tokens.maxAgeMs },
     );
     this.businessController = new BusinessController(

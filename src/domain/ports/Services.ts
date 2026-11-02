@@ -8,6 +8,13 @@ export interface PasswordHasher {
 export interface TokenPayload {
   sub: string;
   email: string;
+  /** Versión de sesión del usuario al emitir el token; si cambia (p. ej. nueva contraseña), el token deja de valer. */
+  ver: number;
+}
+
+/** Comprueba contra el estado actual del usuario que un token (ya verificado criptográficamente) siga vigente. */
+export interface SessionValidator {
+  isValid(payload: TokenPayload): Promise<boolean>;
 }
 
 export interface TokenService {

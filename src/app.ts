@@ -5,7 +5,7 @@ import helmet from 'helmet';
 import type { Logger as PinoLogger } from 'pino';
 import { pinoHttp } from 'pino-http';
 import type { AppConfig } from './config/env.js';
-import type { TokenService } from './domain/ports/Services.js';
+import type { SessionValidator, TokenService } from './domain/ports/Services.js';
 import type { AnalysisController } from './interfaces/http/controllers/AnalysisController.js';
 import type { AuthController } from './interfaces/http/controllers/AuthController.js';
 import type { BusinessController } from './interfaces/http/controllers/BusinessController.js';
@@ -23,6 +23,7 @@ export interface AppDependencies {
   logger: PinoLogger;
   db: { ping(): Promise<boolean> };
   tokens: TokenService;
+  sessions: SessionValidator;
   analyzer: { readonly providerName: string };
   authController: AuthController;
   businessController: BusinessController;

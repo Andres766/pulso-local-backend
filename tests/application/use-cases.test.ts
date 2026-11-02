@@ -42,7 +42,7 @@ describe('Autenticación', () => {
     await register.execute({ email: 'ana@cafe.co', name: 'Ana', password: 'cafeteria2026' });
     const { user, token } = await login.execute({ email: 'ANA@cafe.co', password: 'cafeteria2026' });
     expect(user.name).toBe('Ana');
-    expect(token).toBe(`token:${user.id}`);
+    expect(token).toBe(`token:${user.id}:0`);
   });
 
   it('usa el mismo error para correo inexistente y contraseña errada', async () => {

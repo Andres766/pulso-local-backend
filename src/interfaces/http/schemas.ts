@@ -31,6 +31,13 @@ export const loginSchema = z
   })
   .strict();
 
+export const changePasswordSchema = z
+  .object({
+    currentPassword: z.string().min(1).max(200),
+    newPassword: z.string().min(1).max(200),
+  })
+  .strict();
+
 export const createBusinessSchema = z
   .object({
     name: z.string().trim().min(2).max(120),

@@ -84,11 +84,11 @@ describe('JwtTokenService', () => {
   const service = new JwtTokenService('x'.repeat(40), 1);
 
   it('firma y verifica', () => {
-    expect(service.verify(service.sign({ sub: 'u1', email: 'a@b.co' }))).toEqual({ sub: 'u1', email: 'a@b.co' });
+    expect(service.verify(service.sign({ sub: 'u1', email: 'a@b.co', ver: 2 }))).toEqual({ sub: 'u1', email: 'a@b.co', ver: 2 });
   });
 
   it('rechaza tokens manipulados o firmados con otra clave', () => {
-    const token = service.sign({ sub: 'u1', email: 'a@b.co' });
+    const token = service.sign({ sub: 'u1', email: 'a@b.co', ver: 2 });
     expect(service.verify(`${token.slice(0, -2)}xx`)).toBeNull();
     expect(new JwtTokenService('y'.repeat(40), 1).verify(token)).toBeNull();
   });

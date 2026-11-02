@@ -63,6 +63,15 @@ describe('User (bloqueo por intentos fallidos)', () => {
     expect(u.isLocked(new Date(t0.getTime() + LOCKOUT_MINUTES * 60_000 + 1))).toBe(false);
   });
 
+  it('cambiar la contraseña sube la versión de sesión y quita el bloqueo', () => {
+    const u = user();
+    for (let i = 0; i < MAX_FAILED_LOGINS; i++) u.registerFailedLogin();
+    u.changePassword('nuevo-hash');
+    expect(u.passwordHash).toBe('nuevo-hash');
+    expect(u.tokenVersion).toBe(1);
+    expect(u.isLocked()).toBe(false);
+  });
+
   it('un inicio de sesión correcto reinicia el contador', () => {
     const u = user();
     u.registerFailedLogin();

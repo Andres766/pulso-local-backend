@@ -15,7 +15,7 @@ export class JwtTokenService implements TokenService {
   ) {}
 
   sign(payload: TokenPayload): string {
-    return jwt.sign({ email: payload.email }, this.secret, {
+    return jwt.sign({ email: payload.email, ver: payload.ver }, this.secret, {
       algorithm: 'HS256',
       subject: payload.sub,
       issuer: ISSUER,
@@ -30,7 +30,8 @@ export class JwtTokenService implements TokenService {
       if (typeof decoded === 'string' || typeof decoded.sub !== 'string' || typeof decoded.email !== 'string') {
         return null;
       }
-      return { sub: decoded.sub, email: decoded.email };
+      // Tokens emitidos antes de existir la versión de sesión equivalen a la versión 0.
+      return { sub: decoded.sub, email: decoded.email, ver: typeof decoded.ver === 'number' ? decoded.ver : 0 };
     } catch {
       return null;
     }

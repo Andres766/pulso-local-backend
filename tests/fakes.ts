@@ -178,10 +178,11 @@ export class FakeHasher implements PasswordHasher {
 
 export class FakeTokens implements TokenService {
   sign(p: TokenPayload) {
-    return `token:${p.sub}`;
+    return `token:${p.sub}:${p.ver}`;
   }
   verify(t: string) {
-    return t.startsWith('token:') ? { sub: t.slice(6), email: 'x@y.co' } : null;
+    const [kind, sub, ver] = t.split(':');
+    return kind === 'token' && sub ? { sub, email: 'x@y.co', ver: Number(ver ?? 0) } : null;
   }
 }
 

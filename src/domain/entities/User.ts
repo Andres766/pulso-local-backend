@@ -10,6 +10,8 @@ export interface UserProps {
   /** Intentos de inicio de sesión fallidos seguidos (se reinicia al entrar o al bloquear). */
   failedLogins: number;
   lockedUntil: Date | null;
+  /** Sube con cada cambio de contraseña: invalida todos los tokens emitidos antes. */
+  tokenVersion: number;
   createdAt: Date;
 }
 
@@ -33,6 +35,7 @@ export class User {
       passwordHash: input.passwordHash,
       failedLogins: 0,
       lockedUntil: null,
+      tokenVersion: 0,
       createdAt: new Date(),
     });
   }
@@ -61,6 +64,11 @@ export class User {
     }
   }
 
+  /** Cambia la contraseña y cierra todas las demás sesiones (sus tokens llevan la versión anterior). */
+  changePassword(newHash: string): void {
+    this.props = { ...this.props, passwordHash: newHash, tokenVersion: this.props.tokenVersion + 1, failedLogins: 0, lockedUntil: null };
+  }
+
   registerSuccessfulLogin(): void {
     this.props = { ...this.props, failedLogins: 0, lockedUntil: null };
   }
@@ -87,6 +95,9 @@ export class User {
   }
   get lockedUntil(): Date | null {
     return this.props.lockedUntil;
+  }
+  get tokenVersion(): number {
+    return this.props.tokenVersion;
   }
   get createdAt(): Date {
     return this.props.createdAt;

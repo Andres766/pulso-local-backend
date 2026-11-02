@@ -55,6 +55,6 @@ export class AuthenticateUser {
       user.registerSuccessfulLogin();
       await this.users.save(user);
     }
-    return { user, token: this.tokens.sign({ sub: user.id, email: user.email.value }) };
+    return { user, token: this.tokens.sign({ sub: user.id, email: user.email.value, ver: user.tokenVersion }) };
   }
 }

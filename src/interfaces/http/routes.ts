@@ -20,7 +20,7 @@ const csvUpload = multer({
 
 export function createApiRouter(c: AppDependencies): Router {
   const router = Router();
-  const auth = requireAuth(c.tokens);
+  const auth = requireAuth(c.tokens, c.sessions);
 
   router.use(noStore);
 
@@ -34,6 +34,7 @@ export function createApiRouter(c: AppDependencies): Router {
   router.post('/auth/login', authIpLimiter, authLimiter, c.authController.login);
   router.post('/auth/logout', c.authController.logout);
   router.get('/auth/me', auth, c.authController.me);
+  router.post('/auth/password', auth, authLimiter, c.authController.changePassword);
 
   // Negocios
   router.get('/businesses', auth, c.businessController.list);

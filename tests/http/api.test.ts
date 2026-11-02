@@ -9,6 +9,7 @@ import { RequestAnalysis } from '../../src/application/use-cases/analysis/Reques
 import { AuthenticateUser } from '../../src/application/use-cases/auth/AuthenticateUser.js';
 import { GetCurrentUser } from '../../src/application/use-cases/auth/GetCurrentUser.js';
 import { RegisterUser } from '../../src/application/use-cases/auth/RegisterUser.js';
+import { ChangePassword, ValidateSession } from '../../src/application/use-cases/auth/SessionUseCases.js';
 import { BusinessAccess } from '../../src/application/use-cases/businesses/BusinessAccess.js';
 import {
   CreateBusiness,
@@ -61,11 +62,13 @@ function buildApp() {
     logger: pino({ level: 'silent' }),
     db: { ping: async () => true },
     tokens,
+    sessions: new ValidateSession(users),
     analyzer,
     authController: new AuthController(
       new RegisterUser(users, hasher),
       new AuthenticateUser(users, hasher, tokens),
       new GetCurrentUser(users),
+      new ChangePassword(users, hasher, tokens),
       { secure: false, maxAgeMs: tokens.maxAgeMs },
     ),
     businessController: new BusinessController(
@@ -164,6 +167,28 @@ describe('API HTTP', () => {
       expect(limited.status).toBe(429);
       expect(limited.body.error.code).toBe('RATE_LIMITED');
       expect((await attempt('otra.persona@cafe.co')).status).toBe(401); // misma IP, otra cuenta
+    });
+
+    it('cambiar la contraseña cierra las demás sesiones y mantiene la actual', async () => {
+      const email = 'cambio@cafe.co';
+      const sessionA = await register(email, 'Galeras2026x');
+      const login = (password: string) => request(app).post('/api/auth/login').set(CSRF).send({ email, password });
+      const sessionB = (await login('Galeras2026x')).get('Set-Cookie')!; // otro dispositivo
+      const change = (cookie: string[], body: object) => request(app).post('/api/auth/password').set(CSRF).set('Cookie', cookie).send(body);
+
+      expect((await change(sessionA, { currentPassword: 'errada-999x', newPassword: 'NuevaClave2027' })).status).toBe(401);
+      expect((await change(sessionA, { currentPassword: 'Galeras2026x', newPassword: 'corta1' })).status).toBe(400);
+      expect((await change(sessionA, { currentPassword: 'Galeras2026x', newPassword: 'Galeras2026x' })).status).toBe(400);
+
+      const ok = await change(sessionA, { currentPassword: 'Galeras2026x', newPassword: 'NuevaClave2027' });
+      expect(ok.status).toBe(204);
+      const renewedA = ok.get('Set-Cookie')!;
+
+      expect((await request(app).get('/api/auth/me').set('Cookie', renewedA)).status).toBe(200);
+      expect((await request(app).get('/api/auth/me').set('Cookie', sessionA)).status).toBe(401); // token anterior
+      expect((await request(app).get('/api/auth/me').set('Cookie', sessionB)).status).toBe(401); // el otro dispositivo
+      expect((await login('Galeras2026x')).status).toBe(401);
+      expect((await login('NuevaClave2027')).status).toBe(200);
     });
 
     it('rechaza peticiones que modifican estado sin el header anti-CSRF', async () => {

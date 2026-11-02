@@ -1,6 +1,6 @@
 import type { RequestHandler } from 'express';
 import { ipKeyGenerator, rateLimit } from 'express-rate-limit';
-import type { TokenService } from '../../../domain/ports/Services.js';
+import type { SessionValidator, TokenService } from '../../../domain/ports/Services.js';
 import { HttpError } from './errorHandler.js';
 
 export const SESSION_COOKIE = 'pulso_session';
@@ -18,18 +18,23 @@ declare global {
 
 /**
  * Autenticación: el JWT viaja en una cookie httpOnly (JavaScript del navegador no puede
- * leerla → un XSS no roba la sesión). Si es válida, deja el id del usuario en req.userId.
+ * leerla → un XSS no roba la sesión). Se verifica la firma y, además, que la sesión siga
+ * vigente (la cuenta existe y no cambió su contraseña desde que se emitió el token).
  */
-export function requireAuth(tokens: TokenService): RequestHandler {
-  return (req, _res, next) => {
-    const token: unknown = req.cookies?.[SESSION_COOKIE];
-    const payload = typeof token === 'string' ? tokens.verify(token) : null;
-    if (!payload) {
-      next(new HttpError(401, 'UNAUTHENTICATED', 'Debes iniciar sesión'));
-      return;
+export function requireAuth(tokens: TokenService, sessions: SessionValidator): RequestHandler {
+  return async (req, _res, next) => {
+    try {
+      const token: unknown = req.cookies?.[SESSION_COOKIE];
+      const payload = typeof token === 'string' ? tokens.verify(token) : null;
+      if (!payload || !(await sessions.isValid(payload))) {
+        next(new HttpError(401, 'UNAUTHENTICATED', 'Debes iniciar sesión'));
+        return;
+      }
+      req.userId = payload.sub;
+      next();
+    } catch (err) {
+      next(err);
     }
-    req.userId = payload.sub;
-    next();
   };
 }
 
