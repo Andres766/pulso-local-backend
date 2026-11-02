@@ -2,7 +2,7 @@
 
 **Curso:** Programación Orientada a la Web · 7.º semestre · Ingeniería de Software · UCC Pasto
 **Tipo:** proyecto final individual
-**Fecha del avance:** 13 de octubre de 2026 (avance 2)
+**Fecha del avance:** 2 de noviembre de 2026 (avance 4)
 
 ---
 
@@ -35,7 +35,8 @@ una recomendación la calcula el código, no el LLM**. Así el modelo no puede i
 | IA (alternativa) | API de Claude (Anthropic), modelo `claude-opus-5` | Mismo contrato: se activa solo con poner `ANTHROPIC_API_KEY` |
 | IA de respaldo | Analizador léxico propio en español | Funciona sin red ni costo, y sirve para las pruebas automáticas |
 | Infraestructura | Docker Compose (db + api + nginx) | Todo el entorno se levanta con un comando |
-| Pruebas | Vitest + Supertest | 48 pruebas: dominio, casos de uso, infraestructura, proveedores de IA e integración HTTP |
+| Pruebas | Vitest, Supertest, Testing Library, Playwright | Backend: 86 (dominio, casos de uso, HTTP y 8 contra PostgreSQL real). Frontend: 26 unitarias y 5 end-to-end |
+| Calidad | Biome, GitHub Actions, `npm audit` | Lint y formato; CI en cada push (con PostgreSQL desechable); 0 vulnerabilidades |
 
 ---
 
@@ -63,8 +64,8 @@ una recomendación la calcula el código, no el LLM**. Así el modelo no puede i
 │        │           puertos (interfaces) ◄─────────────┐           │
 │        │                                              │ implementa│
 │  infrastructure    PgRepositories · JwtTokenService · │           │
-│                    ClaudeReviewAnalyzer / Heuristic ──┘           │
-│                    InMemoryTaskScheduler (cola de análisis)       │
+│                    Gemini / Claude / Heuristic ───────┘           │
+│                    PollingJobRunner (cola persistente en la BD)   │
 └──────────┬──────────────────────────────────────┬─────────────────┘
            │ SQL parametrizado                    │ HTTPS
 ┌──────────▼──────────┐                 ┌─────────▼─────────┐
@@ -73,46 +74,46 @@ una recomendación la calcula el código, no el LLM**. Así el modelo no puede i
 ```
 
 **Regla de dependencias:** las flechas apuntan hacia adentro. `domain` no importa nada de Express, `pg` ni del
-SDK de Anthropic. La infraestructura implementa las interfaces (puertos) que define el dominio.
+SDK de Google o de Anthropic. La infraestructura implementa las interfaces (puertos) que define el dominio.
 
 ---
 
 ## 4. Estructura de carpetas
 
 ```
-Pulso_local/
-├── docker-compose.yml         db + backend + frontend
-├── .env.example               variables documentadas (el .env real no se versiona)
-├── samples/                   CSV de ejemplo (40 reseñas de una cafetería de Pasto)
-├── docs/ARQUITECTURA.md       este documento
-├── backend/
-│   ├── src/
-│   │   ├── domain/            ← núcleo, sin dependencias externas
-│   │   │   ├── entities/      User, Business, Review, AnalysisRun
-│   │   │   ├── value-objects/ Email, Sentiment, Rating
-│   │   │   ├── model/         tipos del análisis (TopicStat, Recommendation…)
-│   │   │   ├── services/      InsightAggregator (cálculo puro de cifras)
-│   │   │   ├── ports/         interfaces: repositorios, ReviewAnalyzer, servicios
-│   │   │   └── errors/        jerarquía DomainError
-│   │   ├── application/use-cases/   un caso de uso = una clase con execute()
-│   │   ├── infrastructure/
-│   │   │   ├── db/            Database, migraciones SQL, repositorios Pg*
-│   │   │   ├── ai/            ClaudeReviewAnalyzer, HeuristicReviewAnalyzer, prompts, Factory
-│   │   │   ├── security/      BcryptPasswordHasher, JwtTokenService
-│   │   │   ├── csv/           parsers de CSV y texto pegado
-│   │   │   └── jobs/          InMemoryTaskScheduler
-│   │   ├── interfaces/http/   controllers, middlewares, schemas, routes
-│   │   ├── container.ts       raíz de composición (inyección de dependencias)
-│   │   ├── app.ts             construcción de Express
-│   │   └── server.ts          arranque y apagado ordenado
-│   └── tests/                 dominio, casos de uso (con repos en memoria), infraestructura
-└── frontend/
-    └── src/
-        ├── api/               HttpClient, servicios por recurso, tipos
-        ├── auth/              AuthContext + guardia de rutas
-        ├── components/        ui, charts, insights, ReviewsTable, ImportPanel
-        ├── hooks/             useAnalysisPolling
-        └── pages/             AuthPage, BusinessesPage, DashboardPage
+backend/  (repositorio pulso-local-backend)
+├── src/
+│   ├── domain/                 ← núcleo, sin dependencias externas
+│   │   ├── entities/           User, Business, Review, AnalysisRun
+│   │   ├── value-objects/      Email, Sentiment, Rating
+│   │   ├── model/              tipos del análisis (TopicStat, Recommendation…) y LlmUsage/UsageMeter
+│   │   ├── services/           InsightAggregator, InsightComparator, SentimentTrend (cálculos puros)
+│   │   ├── ports/              interfaces: repositorios, ReviewAnalyzer, JobQueue, SessionValidator…
+│   │   └── errors/             jerarquía DomainError
+│   ├── application/
+│   │   ├── use-cases/          un caso de uso = una clase con execute(); AnalysisWorker consume la cola
+│   │   └── evaluation/         métricas de exactitud (precisión, cobertura, F1, matriz de confusión)
+│   ├── infrastructure/
+│   │   ├── db/                 Database, migraciones SQL (001–005), repositorios Pg*, seed
+│   │   ├── ai/                 LlmReviewAnalyzer (abstracta) → Gemini/Claude; Heuristic; prompts; Factory
+│   │   ├── security/           BcryptPasswordHasher, JwtTokenService
+│   │   ├── csv/                parsers de entrada y exportador con protección contra formula injection
+│   │   └── jobs/               PollingJobRunner (cuándo mirar la cola)
+│   ├── interfaces/http/        controllers, middlewares (seguridad, request ID, errores), schemas, routes, openapi
+│   ├── scripts/evaluate.ts     npm run eval
+│   ├── container.ts            raíz de composición (inyección de dependencias)
+│   ├── app.ts                  construcción de Express a partir de AppDependencies
+│   └── server.ts               arranque, recuperación de la cola y apagado ordenado
+├── tests/                      dominio, casos de uso, HTTP (Supertest), IA y db/ (PostgreSQL real)
+├── samples/                    CSV de ejemplo (cafetería y restaurante) y conjunto de evaluación etiquetado
+└── .github/workflows/ci.yml
+
+frontend/  (repositorio pulso-local---frontend)
+├── src/api/                    HttpClient (fachada), servicios por recurso, tipos del contrato
+├── src/auth/                   AuthContext, guardia de rutas, safeRedirect
+├── src/components/             UI, gráficos, toasts, diálogo de confirmación, ErrorBoundary…
+├── src/pages/                  Auth, Negocios, Dashboard, Mi cuenta, 404 (carga diferida)
+└── e2e/                        pruebas end-to-end con Playwright
 ```
 
 ---
@@ -134,16 +135,16 @@ users 1───N businesses 1───N reviews
 
 | Tabla | Propósito | Restricciones clave |
 |---|---|---|
-| `users` | Dueños de negocio | `email` único; solo se guarda el hash bcrypt |
+| `users` | Dueños de negocio | `email` único; solo el hash bcrypt; `failed_logins`/`locked_until` (bloqueo) y `token_version` (sesiones) |
 | `businesses` | Negocios de cada usuario | FK `owner_id`, `CHECK` de categoría |
 | `reviews` | Reseñas crudas | `UNIQUE(business_id, content_hash)` para deduplicar; `CHECK` de longitud y de estrellas |
-| `analysis_runs` | Cada ejecución de la IA | `CHECK` de estado; guarda el proveedor usado (trazabilidad) |
+| `analysis_runs` | Cada ejecución de la IA **y cola de trabajos** | `CHECK` de estado; proveedor usado; `attempts`/`available_at` (reintentos); llamadas y tokens consumidos; índice parcial de pendientes |
 | `review_sentiments` | Sentimiento por reseña **y por análisis** | Guarda el histórico: un nuevo análisis no sobrescribe el anterior |
 | `topics` | Temas detectados, con sus cifras | `UNIQUE(run_id, key)`; `sample_quotes` en JSONB |
 | `review_topics` | Relación N:M reseña–tema | PK compuesta |
 | `recommendations` | Recomendaciones ordenadas | `CHECK` de prioridad, `evidence_share` calculado por el código |
 
-Las migraciones son archivos SQL versionados (`001_initial_schema.sql`). Un migrador propio las aplica en orden,
+Las migraciones son archivos SQL versionados (`001` esquema inicial, `002` cola persistente, `003` bloqueo de cuenta, `004` versión de sesión, `005` consumo de IA). Un migrador propio las aplica en orden,
 cada una en su propia transacción, y lleva el control en la tabla `schema_migrations`.
 
 ---
@@ -151,27 +152,32 @@ cada una en su propia transacción, y lleva el control en la tabla `schema_migra
 ## 6. Pipeline de IA
 
 ```
-POST /businesses/:id/analyses ──► RequestAnalysis ──► 202 Accepted { runId, status: "pending" }
-                                         │
-                                         ▼ (cola en segundo plano)
-                                  ExecuteAnalysis
+POST /businesses/:id/analyses ──► RequestAnalysis ──► guarda el run "pending" ──► 202 Accepted
+                                                           │ (wake)
+                                    PollingJobRunner ◄─────┘   también revisa la cola cada 15 s
+                                           │
+                                  AnalysisWorker.claimNext()   FOR UPDATE SKIP LOCKED
+                                           │
+                                  ExecuteAnalysis.process(run)
    ┌──────────────────────────────────────────────────────────────────────┐
-   │ 1. discoverTopics(muestra de ≤120 reseñas)   → 4–8 temas (LLM)        │
+   │ 1. discoverTopics(muestra ≤120, taxonomía anterior) → 4–8 temas (LLM) │
    │ 2. classify(lotes de 40, 2 en paralelo)      → sentimiento + temas    │
    │ 3. InsightAggregator.aggregate()             → conteos y % (CÓDIGO)   │
    │ 4. recommend(cifras ya calculadas)           → 3–5 borradores (LLM)   │
    │ 5. rankRecommendations()                     → orden + evidencia      │
-   │ 6. completeWithResults() en UNA transacción                          │
+   │ 6. completeWithResults() en UNA transacción (+ tokens consumidos)    │
    └──────────────────────────────────────────────────────────────────────┘
-El frontend consulta GET /analyses/:id cada 1,5 s hasta ver "completed" o "failed".
+   Error transitorio de la IA (429/503) → vuelve a la cola: 30 s, 60 s… hasta 3 intentos.
+   Reinicio del servidor a mitad de un análisis → al arrancar vuelve a la cola (no se pierde).
+El frontend consulta GET /analyses/:id cada 1,5 s y muestra el avance (incluido "reintentando").
 ```
 
 **Por qué se separa en tres llamadas y no en una:** si se clasifican 500 reseñas en lotes y cada lote inventa sus
 propios temas, aparecen "demora", "tiempo de espera" y "lentitud" como tres temas distintos. Primero se fija una
 **taxonomía** y después todas las reseñas se clasifican contra ella. Así el topic modeling queda consistente.
 
-**Salidas estructuradas:** cada llamada define un esquema Zod (`betaZodOutputFormat`). La API devuelve JSON con
-esa forma y el SDK lo valida. Aun así, el código descarta los IDs que no estaban en el lote y los temas que no
+**Salidas estructuradas:** cada llamada define un esquema Zod; Gemini recibe su JSON Schema
+(`responseJsonSchema`) y Claude usa `betaZodOutputFormat`. La respuesta se vuelve a validar con Zod. Aun así, el código descarta los IDs que no estaban en el lote y los temas que no
 pertenecen a la taxonomía (ver prueba *"descarta IDs y temas que el modelo invente"*).
 
 **Esfuerzo por paso:** `low` para clasificar (tarea sencilla y de alto volumen), `medium` para descubrir temas y
@@ -198,7 +204,8 @@ la reintenta en el servidor con otro modelo.
 | **Value Object** | `Email`, `Sentiment`, `Rating` | Validación en un solo lugar; inmutables |
 | **Composition Root / DI** | `container.ts` | El único lugar donde se usa `new` sobre clases concretas |
 | **Facade** | `HttpClient` en el frontend | Un único punto que añade la cookie, el header CSRF y los errores tipados |
-| **Domain Service** | `InsightAggregator`, `InsightComparator` | Cálculos puros del negocio (cifras y evolución) sin E/S, fáciles de probar |
+| **Domain Service** | `InsightAggregator`, `InsightComparator`, `SentimentTrend` | Cálculos puros del negocio (cifras y evolución) sin E/S, fáciles de probar |
+| **Productor–consumidor (cola de trabajos)** | `RequestAnalysis` encola; `AnalysisWorker` consume con `claimNext()`; `PollingJobRunner` decide cuándo | El análisis no bloquea la petición HTTP y sobrevive a reinicios |
 | **CQRS ligero** | `GetDashboard`, `ReviewRepository.search()` | Consultas de lectura optimizadas, separadas de los comandos |
 
 ### Programación orientada a objetos
@@ -224,7 +231,9 @@ la reintenta en el servidor con otro modelo.
 | Robo de sesión por XSS | JWT en cookie `httpOnly`, `SameSite=Strict` y `Secure` en producción; React escapa todo el texto (no se usa `dangerouslySetInnerHTML`) | `AuthController`, frontend |
 | CSRF | Cookie `SameSite=Strict` y header obligatorio `X-Requested-With` en todo método que modifica estado | `requireCsrfHeader` |
 | IDOR (acceder a negocios ajenos) | `BusinessAccess.requireOwned()` en **todos** los casos de uso; responde 404 para no revelar si el negocio existe | `BusinessAccess`, `Business.assertOwnedBy` |
-| Fuerza bruta | Rate limit de 10 intentos cada 15 min en login y registro; bcrypt con costo 12 | `authLimiter`, `BcryptPasswordHasher` |
+| Fuerza bruta | Límite de 10 fallos / 15 min por **IP + correo** y 50 / 15 min por IP (relleno de credenciales); **bloqueo de la cuenta 15 min** tras 5 fallos seguidos, aunque vengan de muchas IP; bcrypt con costo 12 | `authLimiter`, `authIpLimiter`, `User.registerFailedLogin`, `BcryptPasswordHasher` |
+| Sesión robada | **Versión de sesión** dentro del JWT: cambiar la contraseña invalida al instante todos los tokens anteriores; `requireAuth` verifica firma y versión vigente | `ValidateSession`, `ChangePassword` |
+| Datos personales (Ley 1581 de 2012) | Derecho de supresión: eliminar la cuenta borra en cascada negocios, reseñas y análisis; pide la contraseña | `DeleteAccount` |
 | Enumeración de usuarios | Mismo mensaje para correo inexistente y contraseña errada, **y el mismo tiempo de respuesta** (hash señuelo) | `AuthenticateUser` |
 | Contraseñas débiles | Mínimo 10 caracteres, letras y números, no puede contener el correo, máximo de 72 bytes (límite de bcrypt) | `RegisterUser` |
 | Manipulación del JWT | Algoritmo fijado a HS256 (bloquea `alg: none`), con validación de emisor, audiencia y vencimiento | `JwtTokenService` |
@@ -233,7 +242,9 @@ la reintenta en el servidor con otro modelo.
 | **Prompt injection** | Reseñas encerradas en etiquetas XML y escapadas (`<` → `&lt;`); el system prompt ordena tratarlas como datos; salida restringida por esquema y validada en el código | `prompts.ts`, `ExecuteAnalysis` |
 | CSV / formula injection | Al exportar, las celdas que empiezan por `= + - @` se neutralizan con `'`; nombre de archivo saneado | `CsvReviewExporter`, `ReviewController` |
 | Abuso de costos de IA | Máx. 500 reseñas por análisis, 20 análisis por hora por usuario y un solo análisis en curso por negocio | `RequestAnalysis`, `analysisLimiter` |
-| Fuga de información | Manejador central: los errores 500 son genéricos; la traza solo va al log, y los logs ocultan cookies y contraseñas | `errorHandler`, `pino.redact` |
+| Fuga de información | Manejador central: los errores 500 son genéricos y solo traen un `requestId` para buscar la traza en los logs; los logs ocultan cookies y contraseñas | `errorHandler`, `requestId`, `pino.redact` |
+| Open redirect (frontend) | Tras el login solo se aceptan rutas internas: se rechazan `//`, `/\` y caracteres de control | `safeRedirect` |
+| Dependencias vulnerables | `npm audit` en el CI (falla con severidad alta); se corrigieron body-parser, multer y Vite | `.github/workflows/ci.yml` |
 | Cabeceras | Helmet (CSP, HSTS, nosniff, frameguard), `x-powered-by` desactivado, `Cache-Control: no-store` en la API | `app.ts` |
 | CORS | Lista blanca de un solo origen, con credenciales | `app.ts` |
 | Secretos | Configuración validada al arrancar (fail-fast); `JWT_SECRET` de al menos 32 caracteres, y en producción se rechazan valores de ejemplo | `config/env.ts` |
@@ -251,32 +262,46 @@ la reintenta en el servidor con otro modelo.
 | Otro usuario lee o borra el negocio | `404 Negocio no encontrado` ✔ |
 | Búsqueda con `%` | Se busca literal (0 resultados) ✔ |
 | Subir un `.exe` | `400 Solo se aceptan archivos .csv` ✔ |
+| 5 contraseñas erradas y luego la correcta | `423 ACCOUNT_LOCKED` (15 minutos) ✔ |
+| Cambiar la contraseña con dos sesiones abiertas | la otra sesión recibe `401` ✔ |
+| Eliminar la cuenta | 0 usuarios, negocios y reseñas en la base ✔ |
+| Matar el servidor a mitad de un análisis | al volver se recuperó y completó en el segundo intento ✔ |
+| `sort=r.rating; DROP TABLE reviews` | `400` (lista blanca) ✔ |
 
 ---
 
 ## 9. API REST
 
-| Método | Ruta | Descripción |
-|---|---|---|
-| POST | `/api/auth/register` | Crear cuenta (e iniciar sesión) |
-| POST | `/api/auth/login` | Iniciar sesión (cookie httpOnly) |
-| POST | `/api/auth/logout` | Cerrar sesión |
-| GET | `/api/auth/me` | Usuario actual |
-| GET/POST | `/api/businesses` | Listar / crear negocios |
-| GET/DELETE | `/api/businesses/:id` | Ver / eliminar negocio |
-| GET | `/api/businesses/:id/reviews?sentiment=&topic=&q=&limit=&offset=` | Reseñas con filtros |
-| POST | `/api/businesses/:id/reviews/csv` | Importar un CSV (multipart, campo `file`) |
-| POST | `/api/businesses/:id/reviews/text` | Importar texto pegado |
-| GET | `/api/businesses/:id/reviews/export` | Descargar CSV con sentimiento y temas |
-| DELETE | `/api/businesses/:id/reviews` | Borrar todas las reseñas |
-| POST | `/api/businesses/:id/analyses` | Lanzar un análisis (202 Accepted) |
-| GET | `/api/analyses/:id` | Estado del análisis |
-| GET | `/api/businesses/:id/dashboard` | Reporte completo + comparación con el análisis anterior |
-| GET | `/api/health` | Estado de la BD y proveedor de IA activo |
+El contrato completo (23 operaciones, con parámetros, cuerpos y errores) está en **`GET /api/openapi.json`**
+(OpenAPI 3.1; se abre en https://editor.swagger.io). Una prueba recorre las rutas registradas en Express y falla
+si alguna no está documentada.
+
+| Grupo | Operaciones |
+|---|---|
+| Sistema | `GET /health` (estado, versión, tiempo en línea) · `GET /openapi.json` |
+| Autenticación | `POST /auth/register` · `POST /auth/login` · `POST /auth/logout` · `GET /auth/me` · `POST /auth/password` · `DELETE /auth/account` |
+| Negocios | `GET`/`POST /businesses` · `GET`/`PATCH`/`DELETE /businesses/:id` |
+| Reseñas | `GET /businesses/:id/reviews` (filtros, orden, paginación) · `POST …/reviews/csv` · `POST …/reviews/text` · `GET …/reviews/export` · `DELETE …/reviews` · `DELETE …/reviews/:reviewId` |
+| Análisis | `POST /businesses/:id/analyses` (202) · `GET /analyses/:id` · `GET /businesses/:id/dashboard` · `GET /businesses/:id/trend` |
 
 ---
 
-## 10. Estado del avance y próximos pasos
+## 10. Evaluación de la IA
+
+60 reseñas etiquetadas a mano (`samples/evaluacion_sentimiento.csv`) con casos difíciles; se evalúa solo el
+texto (sin estrellas). Detalle completo en `docs/EVALUACION.md` (`npm run eval -- --guardar`).
+
+| Motor | Exactitud | F1 macro | Sarcasmo | Jerga colombiana | Negaciones |
+|---|---|---|---|---|---|
+| Léxico local | 66,7 % | 0,664 | 0 / 7 | 5 / 8 | 7 / 10 |
+| Gemini (`gemini-3.5-flash`) | **93,3 %** | **0,928** | **7 / 7** | **8 / 8** | **10 / 10** |
+
+**Costo medido:** un análisis de 44 reseñas con Gemini hace 4 llamadas y consume ≈ 5 200 tokens de entrada y
+≈ 6 000 de salida (incluido el razonamiento); en el plan gratuito, $0.
+
+---
+
+## 11. Estado del avance y próximos pasos
 
 **Avance 1 (29 sep)**
 - [x] Arquitectura hexagonal, autenticación segura, CRUD de negocios, importación CSV/texto con deduplicación.
@@ -298,8 +323,20 @@ la reintenta en el servidor con otro modelo.
 - [x] Refactor con **Template Method**: `LlmReviewAnalyzer` concentra la lógica común de los proveedores LLM.
 - [x] Probado contra la API real: 44 reseñas analizadas en ~50 s; la reseña con *prompt injection* no alteró el resultado.
 
-**Pendiente**
-1. Medir la exactitud de Gemini frente al heurístico con ~100 reseñas etiquetadas a mano.
-2. Cola persistente (BullMQ + Redis) en lugar de la cola en memoria.
-3. Pruebas end-to-end del frontend (Playwright).
-4. Rate limit por IP real detrás del proxy de Vercel.
+**Avance 4 (2 nov)**
+- [x] **Cola persistente en PostgreSQL** con `FOR UPDATE SKIP LOCKED`, reintentos con espera y recuperación
+  tras reinicios (reemplaza la cola en memoria; no requiere Redis).
+- [x] **Seguridad de cuentas:** bloqueo tras intentos fallidos, límite por IP + correo, cambio de contraseña que
+  cierra las demás sesiones, eliminación de la cuenta (Habeas Data) y ID de petición en logs y errores.
+- [x] **Funciones nuevas:** editar/eliminar negocios, eliminar reseñas, ordenar y filtrar por estrellas,
+  tendencia mensual, consumo de IA por análisis, segundo negocio de ejemplo.
+- [x] **Evaluación de exactitud** (sección 10) y **contrato OpenAPI**.
+- [x] **Calidad:** Biome, CI en ambos repositorios, pruebas contra PostgreSQL real, pruebas unitarias del
+  frontend y end-to-end con Playwright, 0 vulnerabilidades en `npm audit`.
+- [x] **Frontend:** notificaciones y diálogo accesibles, página Mi cuenta, 404 y ErrorBoundary, carga diferida,
+  navegación accesible, plantilla CSV, guía de contraseña y manifiesto web.
+
+**Siguientes pasos posibles**
+1. Ampliar el conjunto de evaluación (≈ 200 reseñas) y medir también la detección de temas.
+2. Notificar al dueño por correo cuando un análisis termina o cuando una queja crece.
+3. Importar reseñas directamente desde Google Business Profile (API oficial).
