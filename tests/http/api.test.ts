@@ -38,6 +38,8 @@ import { BusinessController } from '../../src/interfaces/http/controllers/Busine
 import { HealthController } from '../../src/interfaces/http/controllers/HealthController.js';
 import { ReviewController } from '../../src/interfaces/http/controllers/ReviewController.js';
 import { errorHandler } from '../../src/interfaces/http/middlewares/errorHandler.js';
+import { openApiDocument } from '../../src/interfaces/http/openapi.js';
+import { createApiRouter } from '../../src/interfaces/http/routes.js';
 import { FakeHasher, InMemoryAnalyses, InMemoryBusinesses, InMemoryReviews, InMemoryUsers, silentLogger } from '../fakes.js';
 
 /**
@@ -45,7 +47,7 @@ import { FakeHasher, InMemoryAnalyses, InMemoryBusinesses, InMemoryReviews, InMe
  * validación, controladores, casos de uso) sobre repositorios en memoria. Atacan la API
  * igual que lo haría un cliente o un atacante, sin necesitar PostgreSQL.
  */
-function buildApp() {
+function buildDeps(): AppDependencies {
   const users = new InMemoryUsers();
   const businesses = new InMemoryBusinesses();
   const reviews = new InMemoryReviews();
@@ -97,8 +99,10 @@ function buildApp() {
       new GetSentimentTrend(access, analyses, new SentimentTrend()),
     ),
   };
-  return createApp(deps);
+  return deps;
 }
+
+const buildApp = () => createApp(buildDeps());
 
 const CSRF = { 'X-Requested-With': 'PulsoLocal' };
 
@@ -374,5 +378,26 @@ describe('errorHandler', () => {
     errorHandler(new Error('password=secreto en la base de datos'), req as never, res as never, () => {});
     expect(status).toBe(500);
     expect(body!.error).toEqual({ code: 'INTERNAL_ERROR', message: 'Ocurrió un error interno', requestId: 'req-123' });
+  });
+});
+
+describe('Contrato OpenAPI', () => {
+  it('documenta exactamente las rutas que Express tiene registradas', () => {
+    type Layer = { route?: { path: string; methods: Record<string, boolean> } };
+    const router = createApiRouter(buildDeps()) as unknown as { stack: Layer[] };
+    const registered = router.stack
+      .filter((l) => l.route)
+      .flatMap((l) => Object.keys(l.route!.methods).map((m) => `${m.toUpperCase()} ${l.route!.path.replace(/:(\w+)/g, '{$1}')}`))
+      .sort();
+    const documented = Object.entries(openApiDocument.paths)
+      .flatMap(([path, ops]) => Object.keys(ops).map((m) => `${m.toUpperCase()} ${path}`))
+      .sort();
+    expect(documented).toEqual(registered);
+  });
+
+  it('se sirve en /api/openapi.json', async () => {
+    const res = await request(buildApp()).get('/api/openapi.json');
+    expect(res.status).toBe(200);
+    expect(res.body.openapi).toBe('3.1.0');
   });
 });

@@ -3,6 +3,7 @@ import multer from 'multer';
 import type { AppDependencies } from '../../app.js';
 import { HttpError } from './middlewares/errorHandler.js';
 import { analysisLimiter, authIpLimiter, authLimiter, noStore, requireAuth } from './middlewares/security.js';
+import { openApiDocument } from './openapi.js';
 
 const MAX_CSV_BYTES = 1024 * 1024;
 const CSV_MIME_TYPES = new Set(['text/csv', 'text/plain', 'application/vnd.ms-excel', 'application/csv']);
@@ -25,6 +26,9 @@ export function createApiRouter(c: AppDependencies): Router {
   router.use(noStore);
 
   router.get('/health', c.healthController.check);
+  router.get('/openapi.json', (_req, res) => {
+    res.json(openApiDocument);
+  });
 
   // Autenticación
   router.post('/auth/register', authIpLimiter, authLimiter, c.authController.register);
