@@ -193,6 +193,29 @@ describe('API HTTP', () => {
     });
   });
 
+  describe('listado de reseñas', () => {
+    it('filtra por calificación, ordena y rechaza órdenes fuera de la lista blanca', async () => {
+      const biz = await request(app).post('/api/businesses').set(CSRF).set('Cookie', owner).send({ name: 'Panadería', category: 'tienda' });
+      const csv = ['comentario;calificacion', 'Pan duro;1', 'Pan delicioso;5', 'Pan normal;3', 'Pan frío;1'].join('\n');
+      await request(app)
+        .post(`/api/businesses/${biz.body.id}/reviews/csv`)
+        .set(CSRF)
+        .set('Cookie', owner)
+        .attach('file', Buffer.from(csv), { filename: 'r.csv', contentType: 'text/csv' });
+      const url = `/api/businesses/${biz.body.id}/reviews`;
+
+      const ones = await request(app).get(url).query({ rating: 1 }).set('Cookie', owner);
+      expect(ones.body.total).toBe(2);
+      expect(ones.body.items.every((r: { rating: number }) => r.rating === 1)).toBe(true);
+
+      const asc = await request(app).get(url).query({ sort: 'rating_asc' }).set('Cookie', owner);
+      expect(asc.body.items.map((r: { rating: number }) => r.rating)).toEqual([1, 1, 3, 5]);
+
+      expect((await request(app).get(url).query({ sort: 'r.rating; DROP TABLE reviews' }).set('Cookie', owner)).status).toBe(400);
+      expect((await request(app).get(url).query({ rating: 9 }).set('Cookie', owner)).status).toBe(400);
+    });
+  });
+
   describe('reseñas individuales', () => {
     it('el dueño elimina una reseña suya; el intruso y los IDs ajenos reciben 404', async () => {
       const otherBiz = await request(app)

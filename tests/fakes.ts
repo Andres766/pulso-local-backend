@@ -64,7 +64,10 @@ export class InMemoryReviews implements ReviewRepository {
     return this.items.filter((r) => r.businessId === id).slice(0, limit);
   }
   async search(id: string, f: ReviewFilter): Promise<{ items: ReviewWithInsight[]; total: number }> {
-    const all = this.items.filter((r) => r.businessId === id);
+    const rating = (r: Review) => r.rating?.value ?? 0;
+    const all = this.items.filter((r) => r.businessId === id && (!f.rating || rating(r) === f.rating));
+    if (f.sort === 'rating_desc') all.sort((a, b) => rating(b) - rating(a));
+    if (f.sort === 'rating_asc') all.sort((a, b) => rating(a) - rating(b));
     return {
       total: all.length,
       items: all.slice(f.offset, f.offset + f.limit).map((review) => ({ review, sentiment: null, sentimentScore: null, topics: [] })),

@@ -25,10 +25,16 @@ export interface BusinessRepository {
   delete(id: string): Promise<void>;
 }
 
+export const REVIEW_SORTS = ['recent', 'oldest', 'rating_desc', 'rating_asc', 'most_negative', 'most_positive'] as const;
+export type ReviewSort = (typeof REVIEW_SORTS)[number];
+
 export interface ReviewFilter {
   sentiment?: SentimentLabel;
   topicKey?: string;
   search?: string;
+  /** Calificación exacta en estrellas (1-5). */
+  rating?: number;
+  sort?: ReviewSort;
   limit: number;
   offset: number;
 }

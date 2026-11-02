@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { BUSINESS_CATEGORIES } from '../../domain/entities/Business.js';
+import { REVIEW_SORTS } from '../../domain/ports/Repositories.js';
 import { SENTIMENT_LABELS } from '../../domain/value-objects/Sentiment.js';
 
 /**
@@ -56,6 +57,8 @@ export const listReviewsQuery = z.object({
     .regex(/^[a-z0-9_]{1,60}$/)
     .optional(),
   q: z.string().trim().max(100).optional(),
+  rating: z.coerce.number().int().min(1).max(5).optional(),
+  sort: z.enum(REVIEW_SORTS).default('recent'),
   limit: z.coerce.number().int().min(1).max(100).default(20),
   offset: z.coerce.number().int().min(0).max(100_000).default(0),
 });

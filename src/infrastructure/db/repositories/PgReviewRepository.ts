@@ -1,5 +1,5 @@
 import { Review, type ReviewSource } from '../../../domain/entities/Review.js';
-import type { ReviewFilter, ReviewRepository, ReviewWithInsight } from '../../../domain/ports/Repositories.js';
+import type { ReviewFilter, ReviewRepository, ReviewSort, ReviewWithInsight } from '../../../domain/ports/Repositories.js';
 import { Rating } from '../../../domain/value-objects/Rating.js';
 import type { SentimentLabel } from '../../../domain/value-objects/Sentiment.js';
 import type { Database } from '../Database.js';
@@ -25,6 +25,19 @@ interface ReviewInsightRow extends ReviewRow {
 const INSERT_CHUNK = 500;
 
 export class PgReviewRepository implements ReviewRepository {
+  /**
+   * Lista blanca de órdenes: el cliente elige una clave y aquí se traduce a SQL fijo.
+   * Nunca se interpola texto del usuario en el ORDER BY (no admite parámetros $n).
+   */
+  private static readonly ORDER_BY: Record<ReviewSort, string> = {
+    recent: 'COALESCE(r.authored_at, r.created_at) DESC',
+    oldest: 'COALESCE(r.authored_at, r.created_at) ASC',
+    rating_desc: 'r.rating DESC NULLS LAST, COALESCE(r.authored_at, r.created_at) DESC',
+    rating_asc: 'r.rating ASC NULLS LAST, COALESCE(r.authored_at, r.created_at) DESC',
+    most_negative: 'rs.score ASC NULLS LAST, COALESCE(r.authored_at, r.created_at) DESC',
+    most_positive: 'rs.score DESC NULLS LAST, COALESCE(r.authored_at, r.created_at) DESC',
+  };
+
   constructor(private readonly db: Database) {}
 
   async saveMany(reviews: readonly Review[]): Promise<number> {
@@ -92,6 +105,10 @@ export class PgReviewRepository implements ReviewRepository {
       params.push(`%${filter.search.replace(/[\\%_]/g, (c) => `\\${c}`)}%`);
       conditions.push(`r.content ILIKE $${params.length}`);
     }
+    if (filter.rating) {
+      params.push(filter.rating);
+      conditions.push(`r.rating = $${params.length}`);
+    }
     params.push(filter.limit, filter.offset);
 
     const { rows } = await this.db.query<ReviewInsightRow>(
@@ -109,7 +126,7 @@ export class PgReviewRepository implements ReviewRepository {
          LEFT JOIN lr ON true
          LEFT JOIN review_sentiments rs ON rs.review_id = r.id AND rs.run_id = lr.id
         WHERE ${conditions.join(' AND ')}
-        ORDER BY COALESCE(r.authored_at, r.created_at) DESC, r.id
+        ORDER BY ${PgReviewRepository.ORDER_BY[filter.sort ?? 'recent']}, r.id
         LIMIT $${params.length - 1} OFFSET $${params.length}`,
       params,
     );

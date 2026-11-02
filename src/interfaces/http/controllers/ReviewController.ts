@@ -30,6 +30,8 @@ export class ReviewController {
       sentiment: q.sentiment,
       topicKey: q.topic,
       search: q.q || undefined,
+      rating: q.rating,
+      sort: q.sort,
       limit: q.limit,
       offset: q.offset,
     });
