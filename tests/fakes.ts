@@ -13,6 +13,7 @@ import type {
   UserRepository,
 } from '../src/domain/ports/Repositories.js';
 import type { Logger, PasswordHasher, TaskScheduler, TokenPayload, TokenService } from '../src/domain/ports/Services.js';
+import type { MonthlySentiment } from '../src/domain/services/SentimentTrend.js';
 import type { Email } from '../src/domain/value-objects/Email.js';
 
 /** Implementaciones en memoria de los puertos: los casos de uso se prueban sin base de datos. */
@@ -89,6 +90,8 @@ export class InMemoryReviews implements ReviewRepository {
 export class InMemoryAnalyses implements AnalysisRepository {
   readonly runs = new Map<string, AnalysisRun>();
   readonly results = new Map<string, AnalysisResults>();
+  /** Opcional: permite calcular la tendencia mensual con las fechas de las reseñas. */
+  constructor(private readonly reviews?: InMemoryReviews) {}
   async save(run: AnalysisRun) {
     this.runs.set(run.id, run);
   }
@@ -123,6 +126,19 @@ export class InMemoryAnalyses implements AnalysisRepository {
       stats: { totalReviews: r.classifications.length, sentiment: r.sentiment, topics: [...r.topics] },
       recommendations: [...r.recommendations],
     };
+  }
+  async sentimentByMonth(runId: string): Promise<MonthlySentiment[]> {
+    const byMonth = new Map<string, MonthlySentiment>();
+    for (const c of this.results.get(runId)?.classifications ?? []) {
+      const review = this.reviews?.items.find((r) => r.id === c.reviewId);
+      if (!review) continue;
+      const month = (review.authoredAt ?? review.createdAt).toISOString().slice(0, 7);
+      const p = byMonth.get(month) ?? { month, positive: 0, neutral: 0, negative: 0, total: 0, averageScore: null };
+      p[c.sentiment.label] += 1;
+      p.total += 1;
+      byMonth.set(month, p);
+    }
+    return [...byMonth.values()];
   }
   async failInterrupted() {
     return 0;

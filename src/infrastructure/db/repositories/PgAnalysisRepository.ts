@@ -1,6 +1,7 @@
 import { AnalysisRun, type AnalysisStatus } from '../../../domain/entities/AnalysisRun.js';
 import type { InsightReport, Recommendation, RecommendationPriority, TopicStat } from '../../../domain/model/Insight.js';
 import type { AnalysisRepository, AnalysisResults } from '../../../domain/ports/Repositories.js';
+import type { MonthlySentiment } from '../../../domain/services/SentimentTrend.js';
 import type { Database } from '../Database.js';
 
 interface RunRow {
@@ -202,6 +203,39 @@ export class PgAnalysisRepository implements AnalysisRepository {
       },
       recommendations,
     };
+  }
+
+  async sentimentByMonth(runId: string, months: number): Promise<MonthlySentiment[]> {
+    const { rows } = await this.db.query<{
+      month: string;
+      positive: string;
+      neutral: string;
+      negative: string;
+      total: string;
+      avg: number | null;
+    }>(
+      `SELECT to_char(date_trunc('month', COALESCE(r.authored_at, r.created_at)), 'YYYY-MM') AS month,
+              count(*) FILTER (WHERE rs.sentiment = 'positive') AS positive,
+              count(*) FILTER (WHERE rs.sentiment = 'neutral')  AS neutral,
+              count(*) FILTER (WHERE rs.sentiment = 'negative') AS negative,
+              count(*) AS total,
+              round(avg(rs.score), 2) AS avg
+         FROM review_sentiments rs
+         JOIN reviews r ON r.id = rs.review_id
+        WHERE rs.run_id = $1
+          AND COALESCE(r.authored_at, r.created_at) >= date_trunc('month', now()) - make_interval(months => $2 - 1)
+        GROUP BY 1
+        ORDER BY 1`,
+      [runId, months],
+    );
+    return rows.map((r) => ({
+      month: r.month,
+      positive: Number(r.positive),
+      neutral: Number(r.neutral),
+      negative: Number(r.negative),
+      total: Number(r.total),
+      averageScore: r.avg,
+    }));
   }
 
   async failInterrupted(reason: string): Promise<number> {

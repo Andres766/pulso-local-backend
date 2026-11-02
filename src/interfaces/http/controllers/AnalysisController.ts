@@ -1,13 +1,14 @@
 import type { Request, Response } from 'express';
-import type { GetAnalysis, GetDashboard } from '../../../application/use-cases/analysis/AnalysisQueries.js';
+import type { GetAnalysis, GetDashboard, GetSentimentTrend } from '../../../application/use-cases/analysis/AnalysisQueries.js';
 import type { RequestAnalysis } from '../../../application/use-cases/analysis/RequestAnalysis.js';
-import { uuidParam } from '../schemas.js';
+import { trendQuery, uuidParam } from '../schemas.js';
 
 export class AnalysisController {
   constructor(
     private readonly requestAnalysis: RequestAnalysis,
     private readonly getAnalysis: GetAnalysis,
     private readonly getDashboard: GetDashboard,
+    private readonly getSentimentTrend: GetSentimentTrend,
   ) {}
 
   /** 202 Accepted: el análisis corre en segundo plano; el cliente consulta GET /analyses/:id. */
@@ -35,5 +36,11 @@ export class AnalysisController {
       previousRun: d.previousRun?.toJSON() ?? null,
       comparison: d.comparison,
     });
+  };
+
+  trend = async (req: Request, res: Response) => {
+    const { id } = uuidParam.parse(req.params);
+    const { months } = trendQuery.parse(req.query);
+    res.json(await this.getSentimentTrend.execute(id, req.userId!, months));
   };
 }

@@ -4,6 +4,7 @@ import { NotFoundError } from '../../../domain/errors/DomainError.js';
 import type { InsightReport } from '../../../domain/model/Insight.js';
 import type { AnalysisRepository, ReviewRepository } from '../../../domain/ports/Repositories.js';
 import type { InsightComparator, InsightComparison } from '../../../domain/services/InsightComparator.js';
+import type { MonthlySentiment, SentimentTrend } from '../../../domain/services/SentimentTrend.js';
 import type { BusinessAccess } from '../businesses/BusinessAccess.js';
 
 export class GetAnalysis {
@@ -59,5 +60,24 @@ export class GetDashboard {
     const comparison = report && previousReport ? this.comparator.compare(report, previousReport) : null;
 
     return { business, reviewCount, latestRun, reportRun, report, history, previousRun, comparison };
+  }
+}
+
+export const TREND_MAX_MONTHS = 24;
+
+/** Serie mensual del sentimiento según el último análisis completado. */
+export class GetSentimentTrend {
+  constructor(
+    private readonly access: BusinessAccess,
+    private readonly analyses: AnalysisRepository,
+    private readonly trend: SentimentTrend,
+  ) {}
+
+  async execute(businessId: string, userId: string, months: number): Promise<{ runId: string | null; points: MonthlySentiment[] }> {
+    await this.access.requireOwned(businessId, userId);
+    const run = await this.analyses.findLatestCompleted(businessId);
+    if (!run) return { runId: null, points: [] };
+    const points = await this.analyses.sentimentByMonth(run.id, Math.min(Math.max(months, 1), TREND_MAX_MONTHS));
+    return { runId: run.id, points: this.trend.fillGaps(points) };
   }
 }

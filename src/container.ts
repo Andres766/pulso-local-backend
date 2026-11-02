@@ -1,6 +1,6 @@
 import { type Logger as PinoLogger, pino } from 'pino';
 import type { AppDependencies } from './app.js';
-import { GetAnalysis, GetDashboard } from './application/use-cases/analysis/AnalysisQueries.js';
+import { GetAnalysis, GetDashboard, GetSentimentTrend } from './application/use-cases/analysis/AnalysisQueries.js';
 import { ExecuteAnalysis } from './application/use-cases/analysis/ExecuteAnalysis.js';
 import { MAX_REVIEWS_PER_ANALYSIS, RequestAnalysis } from './application/use-cases/analysis/RequestAnalysis.js';
 import { AuthenticateUser } from './application/use-cases/auth/AuthenticateUser.js';
@@ -19,6 +19,7 @@ import type { AppConfig } from './config/env.js';
 import type { ReviewAnalyzer } from './domain/ports/ReviewAnalyzer.js';
 import { InsightAggregator } from './domain/services/InsightAggregator.js';
 import { InsightComparator } from './domain/services/InsightComparator.js';
+import { SentimentTrend } from './domain/services/SentimentTrend.js';
 import { createReviewAnalyzer } from './infrastructure/ai/ReviewAnalyzerFactory.js';
 import { CsvReviewExporter } from './infrastructure/csv/CsvReviewExporter.js';
 import { CsvReviewParser, PastedTextParser } from './infrastructure/csv/ReviewTextParsers.js';
@@ -112,6 +113,7 @@ export class Container implements AppDependencies {
       new RequestAnalysis(access, reviews, this.analyses, this.analyzer, this.scheduler, executeAnalysis),
       new GetAnalysis(access, this.analyses),
       new GetDashboard(access, reviews, this.analyses, new InsightComparator()),
+      new GetSentimentTrend(access, this.analyses, new SentimentTrend()),
     );
   }
 }

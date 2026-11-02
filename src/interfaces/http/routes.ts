@@ -52,6 +52,7 @@ export function createApiRouter(c: AppDependencies): Router {
 
   // Análisis de IA y dashboard
   router.get('/businesses/:id/dashboard', auth, c.analysisController.dashboard);
+  router.get('/businesses/:id/trend', auth, c.analysisController.trend);
   router.post('/businesses/:id/analyses', auth, analysisLimiter, c.analysisController.start);
   router.get('/analyses/:id', auth, c.analysisController.status);
 

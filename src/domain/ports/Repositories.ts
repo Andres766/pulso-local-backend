@@ -3,6 +3,7 @@ import type { Business } from '../entities/Business.js';
 import type { Review } from '../entities/Review.js';
 import type { User } from '../entities/User.js';
 import type { InsightReport, Recommendation, ReviewClassification, TopicStat } from '../model/Insight.js';
+import type { MonthlySentiment } from '../services/SentimentTrend.js';
 import type { Email } from '../value-objects/Email.js';
 import type { SentimentLabel } from '../value-objects/Sentiment.js';
 
@@ -77,6 +78,8 @@ export interface AnalysisRepository {
   /** Guarda el run completado y todos sus resultados en UNA transacción. */
   completeWithResults(run: AnalysisRun, results: AnalysisResults): Promise<void>;
   getReport(runId: string): Promise<InsightReport | null>;
+  /** Conteo por mes de escritura de la reseña, según el sentimiento que asignó ese análisis. */
+  sentimentByMonth(runId: string, months: number): Promise<MonthlySentiment[]>;
   /** Al arrancar: los análisis que quedaron a medias por un reinicio se marcan como fallidos. */
   failInterrupted(reason: string): Promise<number>;
 }

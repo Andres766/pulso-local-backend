@@ -50,6 +50,10 @@ export const pasteReviewsSchema = z
   })
   .strict();
 
+export const trendQuery = z.object({
+  months: z.coerce.number().int().min(1).max(24).default(12),
+});
+
 export const listReviewsQuery = z.object({
   sentiment: z.enum(SENTIMENT_LABELS).optional(),
   topic: z

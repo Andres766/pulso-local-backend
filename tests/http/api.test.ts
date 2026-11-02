@@ -2,7 +2,7 @@ import { pino } from 'pino';
 import request from 'supertest';
 import { beforeAll, describe, expect, it } from 'vitest';
 import { type AppDependencies, createApp } from '../../src/app.js';
-import { GetAnalysis, GetDashboard } from '../../src/application/use-cases/analysis/AnalysisQueries.js';
+import { GetAnalysis, GetDashboard, GetSentimentTrend } from '../../src/application/use-cases/analysis/AnalysisQueries.js';
 import { ExecuteAnalysis } from '../../src/application/use-cases/analysis/ExecuteAnalysis.js';
 import { RequestAnalysis } from '../../src/application/use-cases/analysis/RequestAnalysis.js';
 import { AuthenticateUser } from '../../src/application/use-cases/auth/AuthenticateUser.js';
@@ -25,6 +25,7 @@ import {
 } from '../../src/application/use-cases/reviews/ReviewUseCases.js';
 import { InsightAggregator } from '../../src/domain/services/InsightAggregator.js';
 import { InsightComparator } from '../../src/domain/services/InsightComparator.js';
+import { SentimentTrend } from '../../src/domain/services/SentimentTrend.js';
 import { HeuristicReviewAnalyzer } from '../../src/infrastructure/ai/HeuristicReviewAnalyzer.js';
 import { CsvReviewExporter } from '../../src/infrastructure/csv/CsvReviewExporter.js';
 import { CsvReviewParser, PastedTextParser } from '../../src/infrastructure/csv/ReviewTextParsers.js';
@@ -52,7 +53,7 @@ function buildApp() {
   const users = new InMemoryUsers();
   const businesses = new InMemoryBusinesses();
   const reviews = new InMemoryReviews();
-  const analyses = new InMemoryAnalyses();
+  const analyses = new InMemoryAnalyses(reviews);
   const hasher = new FakeHasher();
   const tokens = new JwtTokenService('clave-de-prueba-con-mas-de-32-caracteres', 1);
   const analyzer = new HeuristicReviewAnalyzer();
@@ -92,6 +93,7 @@ function buildApp() {
       new RequestAnalysis(access, reviews, analyses, analyzer, new ImmediateScheduler(), execute),
       new GetAnalysis(access, analyses),
       new GetDashboard(access, reviews, analyses, new InsightComparator()),
+      new GetSentimentTrend(access, analyses, new SentimentTrend()),
     ),
   };
   return createApp(deps);
@@ -271,6 +273,12 @@ describe('API HTTP', () => {
       const dashboard = await request(app).get(`/api/businesses/${businessId}/dashboard`).set('Cookie', owner);
       expect(dashboard.body.reportRun.status).toBe('completed');
       expect(dashboard.body.report.stats.totalReviews).toBe(3);
+
+      const trend = await request(app).get(`/api/businesses/${businessId}/trend`).set('Cookie', owner);
+      expect(trend.status).toBe(200);
+      expect(trend.body.points.reduce((n: number, p: { total: number }) => n + p.total, 0)).toBe(3);
+      expect((await request(app).get(`/api/businesses/${businessId}/trend`).query({ months: 99 }).set('Cookie', owner)).status).toBe(400);
+      expect((await request(app).get(`/api/businesses/${businessId}/trend`).set('Cookie', intruder)).status).toBe(404);
 
       const exported = await request(app).get(`/api/businesses/${businessId}/reviews/export`).set('Cookie', owner);
       expect(exported.headers['content-type']).toMatch(/text\/csv/);
