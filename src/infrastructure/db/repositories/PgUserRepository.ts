@@ -8,6 +8,8 @@ interface UserRow {
   email: string;
   name: string;
   password_hash: string;
+  failed_logins: number;
+  locked_until: Date | null;
   created_at: Date;
 }
 
@@ -27,10 +29,11 @@ export class PgUserRepository implements UserRepository {
 
   async save(user: User): Promise<void> {
     await this.db.query(
-      `INSERT INTO users (id, email, name, password_hash, created_at)
-       VALUES ($1, $2, $3, $4, $5)
-       ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name, password_hash = EXCLUDED.password_hash`,
-      [user.id, user.email.value, user.name, user.passwordHash, user.createdAt],
+      `INSERT INTO users (id, email, name, password_hash, failed_logins, locked_until, created_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7)
+       ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name, password_hash = EXCLUDED.password_hash,
+         failed_logins = EXCLUDED.failed_logins, locked_until = EXCLUDED.locked_until`,
+      [user.id, user.email.value, user.name, user.passwordHash, user.failedLogins, user.lockedUntil, user.createdAt],
     );
   }
 
@@ -40,6 +43,8 @@ export class PgUserRepository implements UserRepository {
       email: Email.create(row.email),
       name: row.name,
       passwordHash: row.password_hash,
+      failedLogins: row.failed_logins,
+      lockedUntil: row.locked_until,
       createdAt: row.created_at,
     });
   }

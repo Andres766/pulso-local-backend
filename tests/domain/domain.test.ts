@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { AnalysisRun } from '../../src/domain/entities/AnalysisRun.js';
 import { Business } from '../../src/domain/entities/Business.js';
 import { Review } from '../../src/domain/entities/Review.js';
+import { LOCKOUT_MINUTES, MAX_FAILED_LOGINS, User } from '../../src/domain/entities/User.js';
 import { ConflictError, NotFoundError, ValidationError } from '../../src/domain/errors/DomainError.js';
 import { InsightAggregator } from '../../src/domain/services/InsightAggregator.js';
 import { Email } from '../../src/domain/value-objects/Email.js';
@@ -45,6 +46,29 @@ describe('Review', () => {
   it('rechaza reseñas vacías o demasiado largas', () => {
     expect(() => Review.create({ businessId: 'b', content: ' ', source: 'manual' })).toThrow(ValidationError);
     expect(() => Review.create({ businessId: 'b', content: 'x'.repeat(2001), source: 'manual' })).toThrow(ValidationError);
+  });
+});
+
+describe('User (bloqueo por intentos fallidos)', () => {
+  const user = () => User.register({ email: Email.create('ana@cafe.co'), name: 'Ana', passwordHash: 'h' });
+
+  it('se bloquea al quinto fallo seguido y se desbloquea sola al pasar el tiempo', () => {
+    const u = user();
+    const t0 = new Date('2026-11-02T10:00:00Z');
+    for (let i = 0; i < MAX_FAILED_LOGINS - 1; i++) u.registerFailedLogin(t0);
+    expect(u.isLocked(t0)).toBe(false);
+    u.registerFailedLogin(t0);
+    expect(u.isLocked(t0)).toBe(true);
+    expect(u.minutesUntilUnlock(t0)).toBe(LOCKOUT_MINUTES);
+    expect(u.isLocked(new Date(t0.getTime() + LOCKOUT_MINUTES * 60_000 + 1))).toBe(false);
+  });
+
+  it('un inicio de sesión correcto reinicia el contador', () => {
+    const u = user();
+    u.registerFailedLogin();
+    u.registerFailedLogin();
+    u.registerSuccessfulLogin();
+    expect(u.failedLogins).toBe(0);
   });
 });
 

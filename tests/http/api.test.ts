@@ -147,6 +147,16 @@ describe('API HTTP', () => {
       expect(res.body.user).not.toHaveProperty('passwordHash');
     });
 
+    it('tras 5 contraseñas erradas responde 423 y no deja entrar ni con la correcta', async () => {
+      await register('victima@cafe.co', 'Galeras2026x');
+      const attempt = (password: string) => request(app).post('/api/auth/login').set(CSRF).send({ email: 'victima@cafe.co', password });
+      for (let i = 0; i < 4; i++) expect((await attempt('errada-123x')).status).toBe(401);
+      const locked = await attempt('errada-123x');
+      expect(locked.status).toBe(423);
+      expect(locked.body.error.code).toBe('ACCOUNT_LOCKED');
+      expect((await attempt('Galeras2026x')).status).toBe(423);
+    });
+
     it('rechaza peticiones que modifican estado sin el header anti-CSRF', async () => {
       const res = await request(app).post('/api/businesses').set('Cookie', owner).send({ name: 'X', category: 'otro' });
       expect(res.status).toBe(403);

@@ -2,6 +2,7 @@ import type { ErrorRequestHandler, RequestHandler } from 'express';
 import multer from 'multer';
 import { ZodError } from 'zod';
 import {
+  AccountLockedError,
   AnalyzerError,
   AuthenticationError,
   ConflictError,
@@ -26,6 +27,7 @@ type DomainErrorClass = abstract new (...args: never[]) => DomainError;
 const STATUS_BY_DOMAIN_ERROR = new Map<DomainErrorClass, number>([
   [ValidationError, 400],
   [AuthenticationError, 401],
+  [AccountLockedError, 423],
   [NotFoundError, 404],
   [ConflictError, 409],
   [AnalyzerError, 502],

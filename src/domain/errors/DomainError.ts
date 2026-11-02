@@ -41,6 +41,15 @@ export class AnalyzerError extends DomainError {
   }
 }
 
+/** Cuenta bloqueada temporalmente por demasiados intentos fallidos. */
+export class AccountLockedError extends DomainError {
+  readonly code = 'ACCOUNT_LOCKED';
+
+  constructor(readonly minutes: number) {
+    super(`Cuenta bloqueada por demasiados intentos fallidos. Intenta de nuevo en ${minutes} minuto${minutes === 1 ? '' : 's'}.`);
+  }
+}
+
 /** Credenciales inválidas. El mensaje es genérico a propósito. */
 export class AuthenticationError extends DomainError {
   readonly code = 'AUTHENTICATION_ERROR';

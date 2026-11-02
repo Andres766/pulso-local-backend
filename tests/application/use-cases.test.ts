@@ -8,7 +8,14 @@ import { RegisterUser } from '../../src/application/use-cases/auth/RegisterUser.
 import { BusinessAccess } from '../../src/application/use-cases/businesses/BusinessAccess.js';
 import { CreateBusiness } from '../../src/application/use-cases/businesses/BusinessUseCases.js';
 import { ImportReviews } from '../../src/application/use-cases/reviews/ReviewUseCases.js';
-import { AnalyzerError, AuthenticationError, ConflictError, NotFoundError, ValidationError } from '../../src/domain/errors/DomainError.js';
+import {
+  AccountLockedError,
+  AnalyzerError,
+  AuthenticationError,
+  ConflictError,
+  NotFoundError,
+  ValidationError,
+} from '../../src/domain/errors/DomainError.js';
 import type { ReviewAnalyzer } from '../../src/domain/ports/ReviewAnalyzer.js';
 import { InsightAggregator } from '../../src/domain/services/InsightAggregator.js';
 import { InsightComparator } from '../../src/domain/services/InsightComparator.js';
@@ -41,6 +48,15 @@ describe('Autenticación', () => {
   it('usa el mismo error para correo inexistente y contraseña errada', async () => {
     await expect(login.execute({ email: 'ana@cafe.co', password: 'otra-clave-99' })).rejects.toThrow(AuthenticationError);
     await expect(login.execute({ email: 'nadie@cafe.co', password: 'cafeteria2026' })).rejects.toThrow(AuthenticationError);
+  });
+
+  it('bloquea la cuenta tras 5 fallos: ni la contraseña correcta entra hasta que pase el bloqueo', async () => {
+    await register.execute({ email: 'bloqueo@cafe.co', name: 'Bea', password: 'cafeteria2026' });
+    for (let i = 0; i < 4; i++) {
+      await expect(login.execute({ email: 'bloqueo@cafe.co', password: 'mala-clave-1' })).rejects.toThrow(AuthenticationError);
+    }
+    await expect(login.execute({ email: 'bloqueo@cafe.co', password: 'mala-clave-1' })).rejects.toThrow(AccountLockedError);
+    await expect(login.execute({ email: 'bloqueo@cafe.co', password: 'cafeteria2026' })).rejects.toThrow(/15 minutos/);
   });
 
   it('exige contraseñas robustas y correos únicos', async () => {
