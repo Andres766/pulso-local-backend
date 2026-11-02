@@ -1,0 +1,61 @@
+comentario;calificacion;esperado;tipo
+El café es delicioso y la atención excelente.;5;positive;directo
+Se demoraron una hora con el pedido, pésimo servicio.;1;negative;directo
+Normal, nada del otro mundo.;3;neutral;directo
+Me encantó el lugar, volveré seguro.;5;positive;directo
+La comida llegó fría y el mesero fue grosero.;1;negative;directo
+El precio es razonable para lo que dan.;4;positive;directo
+Muy sucio el baño, da asco.;1;negative;directo
+Atención rápida y amable, todo perfecto.;5;positive;directo
+Ni bueno ni malo, cumple.;3;neutral;directo
+Excelente sazón, de lo mejor que he probado en Pasto.;5;positive;directo
+Qué boleta, nos cobraron de más y nadie respondió.;1;negative;jerga
+Ese pandebono es una chimba, lo recomiendo.;5;positive;jerga
+Bacano el sitio para ir con los parceros.;5;positive;jerga
+El man de la caja todo mal encarado, ni saludó.;2;negative;jerga
+Qué rico ese tinto campesino, parce.;5;positive;jerga
+Una chimba de lugar pero se demoran harto.;3;neutral;jerga
+Nos tocó esperar un jurgo de tiempo, qué mamera.;2;negative;jerga
+Todo bien, nada que decir.;4;positive;jerga
+No estaba rico.;2;negative;negacion
+No me gustó para nada la atención.;1;negative;negacion
+No es caro y la porción es grande.;4;positive;negacion
+Nunca había comido algo tan bueno.;5;positive;negacion
+No tuve ningún problema, todo llegó bien.;4;positive;negacion
+No volvería nunca, mala experiencia.;1;negative;negacion
+No está mal, pero tampoco es para tanto.;3;neutral;negacion
+Sin quejas, el servicio cumple.;4;positive;negacion
+No hubo demoras esta vez, mejoraron.;4;positive;negacion
+Ningún mesero nos atendió en 20 minutos.;1;negative;negacion
+Qué maravilla esperar 40 minutos por un café, felicitaciones.;1;negative;sarcasmo
+Genial, otra vez se equivocaron con mi pedido.;1;negative;sarcasmo
+Excelente servicio, si te gusta que te ignoren.;1;negative;sarcasmo
+Súper rápidos, solo tardaron una hora.;1;negative;sarcasmo
+Me encanta pagar el doble por la mitad de la porción.;2;negative;sarcasmo
+Buenísimo el aire acondicionado, si fueras un pingüino.;2;negative;sarcasmo
+Gracias por el pelo en la sopa, muy detallistas.;1;negative;sarcasmo
+La comida es buena pero el servicio es muy lento.;3;neutral;mixta
+Rico el café, aunque un poco caro.;4;positive;mixta
+Bonito lugar, lástima que estaba sucio.;2;negative;mixta
+El postre excelente, la carne regular.;3;neutral;mixta
+Atención amable pero se equivocaron en la cuenta.;3;neutral;mixta
+Muy caro, eso sí, la calidad es muy buena.;4;positive;mixta
+Buena música, pésima comida.;2;negative;mixta
+El sitio es lindo pero la espera es eterna y la comida llega fría.;2;negative;mixta
+Excelente el desayuno, aunque la mesa estaba algo pegajosa.;4;positive;mixta
+Exelente atencion, muy rico todo;5;positive;ortografia
+la comida super fria y demorada;1;negative;ortografia
+q rico el cafe y el pan;5;positive;ortografia
+mal servicio no buelvo;1;negative;ortografia
+esta bien pero lo de siempre;3;neutral;ortografia
+deliciozo el almuerzo, porciones grandes;5;positive;ortografia
+Fui el martes a almorzar con mi familia.;3;neutral;descriptiva
+Pedí una bandeja paisa y un jugo de mora.;3;neutral;descriptiva
+El local queda frente al parque principal.;3;neutral;descriptiva
+Abren a las 7 de la mañana.;3;neutral;descriptiva
+Tienen parqueadero para cinco carros.;3;neutral;descriptiva
+Aceptan Nequi y efectivo.;3;neutral;descriptiva
+El café estaba bien.;3;neutral;directo
+Ya no es lo mismo de antes, bajó mucho la calidad.;2;negative;directo
+Lo mejor de la ciudad, cinco estrellas sin dudarlo.;5;positive;directo
+Pésimo, una decepción total.;1;negative;directo
