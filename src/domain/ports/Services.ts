@@ -16,9 +16,12 @@ export interface TokenService {
   verify(token: string): TokenPayload | null;
 }
 
-/** Ejecuta trabajo en segundo plano (hoy en memoria; mañana podría ser BullMQ/Redis). */
-export interface TaskScheduler {
-  schedule(name: string, task: () => Promise<void>): void;
+/**
+ * Cola de trabajos en segundo plano. Los trabajos ya están persistidos (análisis "pending" en la
+ * base de datos); wake() solo avisa al worker para que no espere al siguiente sondeo.
+ */
+export interface JobQueue {
+  wake(): void;
 }
 
 export interface Logger {

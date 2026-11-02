@@ -2,16 +2,16 @@ import { AnalysisRun } from '../../../domain/entities/AnalysisRun.js';
 import { ConflictError } from '../../../domain/errors/DomainError.js';
 import type { AnalysisRepository, ReviewRepository } from '../../../domain/ports/Repositories.js';
 import type { ReviewAnalyzer } from '../../../domain/ports/ReviewAnalyzer.js';
-import type { TaskScheduler } from '../../../domain/ports/Services.js';
+import type { JobQueue } from '../../../domain/ports/Services.js';
 import type { BusinessAccess } from '../businesses/BusinessAccess.js';
-import type { ExecuteAnalysis } from './ExecuteAnalysis.js';
 
 /** Tope de reseñas por análisis: controla costo y latencia de la IA. */
 export const MAX_REVIEWS_PER_ANALYSIS = 500;
 
 /**
- * Solicita un análisis y responde de inmediato (202 Accepted). El trabajo pesado
- * lo hace ExecuteAnalysis en segundo plano; el frontend consulta el estado del run.
+ * Solicita un análisis y responde de inmediato (202 Accepted): el análisis queda "pending" en la
+ * base de datos (cola persistente) y AnalysisWorker lo ejecuta en segundo plano. Si el servidor se
+ * reinicia, el trabajo no se pierde. El frontend consulta el estado del run.
  */
 export class RequestAnalysis {
   constructor(
@@ -19,8 +19,7 @@ export class RequestAnalysis {
     private readonly reviews: ReviewRepository,
     private readonly analyses: AnalysisRepository,
     private readonly analyzer: ReviewAnalyzer,
-    private readonly scheduler: TaskScheduler,
-    private readonly executeAnalysis: ExecuteAnalysis,
+    private readonly queue: JobQueue,
   ) {}
 
   async execute(businessId: string, userId: string): Promise<AnalysisRun> {
@@ -43,7 +42,8 @@ export class RequestAnalysis {
     });
     await this.analyses.save(run);
 
-    this.scheduler.schedule(`analysis:${run.id}`, () => this.executeAnalysis.execute(run.id));
+    // El análisis ya quedó en la cola persistente; solo se avisa al worker para que empiece ya.
+    this.queue.wake();
     return run;
   }
 }

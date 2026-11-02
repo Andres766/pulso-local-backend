@@ -1,6 +1,7 @@
 import { type Logger as PinoLogger, pino } from 'pino';
 import type { AppDependencies } from './app.js';
 import { GetAnalysis, GetDashboard, GetSentimentTrend } from './application/use-cases/analysis/AnalysisQueries.js';
+import { AnalysisWorker } from './application/use-cases/analysis/AnalysisWorker.js';
 import { ExecuteAnalysis } from './application/use-cases/analysis/ExecuteAnalysis.js';
 import { MAX_REVIEWS_PER_ANALYSIS, RequestAnalysis } from './application/use-cases/analysis/RequestAnalysis.js';
 import { AuthenticateUser } from './application/use-cases/auth/AuthenticateUser.js';
@@ -28,7 +29,7 @@ import { PgAnalysisRepository } from './infrastructure/db/repositories/PgAnalysi
 import { PgBusinessRepository } from './infrastructure/db/repositories/PgBusinessRepository.js';
 import { PgReviewRepository } from './infrastructure/db/repositories/PgReviewRepository.js';
 import { PgUserRepository } from './infrastructure/db/repositories/PgUserRepository.js';
-import { InMemoryTaskScheduler } from './infrastructure/jobs/InMemoryTaskScheduler.js';
+import { PollingJobRunner } from './infrastructure/jobs/PollingJobRunner.js';
 import { BcryptPasswordHasher } from './infrastructure/security/BcryptPasswordHasher.js';
 import { JwtTokenService } from './infrastructure/security/JwtTokenService.js';
 import { AnalysisController } from './interfaces/http/controllers/AnalysisController.js';
@@ -47,7 +48,7 @@ export class Container implements AppDependencies {
   readonly tokens: JwtTokenService;
   readonly analyzer: ReviewAnalyzer;
   readonly analyses: PgAnalysisRepository;
-  readonly scheduler: InMemoryTaskScheduler;
+  readonly jobs: PollingJobRunner;
 
   readonly authController: AuthController;
   readonly businessController: BusinessController;
@@ -71,7 +72,6 @@ export class Container implements AppDependencies {
     const hasher = new BcryptPasswordHasher();
     this.tokens = new JwtTokenService(config.JWT_SECRET, config.JWT_EXPIRES_IN_HOURS);
     this.analyzer = createReviewAnalyzer(config, this.logger);
-    this.scheduler = new InMemoryTaskScheduler(this.logger, 2);
 
     // Aplicación
     const access = new BusinessAccess(businesses);
@@ -84,6 +84,7 @@ export class Container implements AppDependencies {
       this.logger,
       MAX_REVIEWS_PER_ANALYSIS,
     );
+    this.jobs = new PollingJobRunner(new AnalysisWorker(this.analyses, executeAnalysis, this.logger), this.logger);
 
     // Interfaces HTTP
     this.authController = new AuthController(
@@ -110,7 +111,7 @@ export class Container implements AppDependencies {
       new DeleteReview(access, reviews),
     );
     this.analysisController = new AnalysisController(
-      new RequestAnalysis(access, reviews, this.analyses, this.analyzer, this.scheduler, executeAnalysis),
+      new RequestAnalysis(access, reviews, this.analyses, this.analyzer, this.jobs),
       new GetAnalysis(access, this.analyses),
       new GetDashboard(access, reviews, this.analyses, new InsightComparator()),
       new GetSentimentTrend(access, this.analyses, new SentimentTrend()),

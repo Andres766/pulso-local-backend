@@ -80,6 +80,14 @@ export interface AnalysisRepository {
   getReport(runId: string): Promise<InsightReport | null>;
   /** Conteo por mes de escritura de la reseña, según el sentimiento que asignó ese análisis. */
   sentimentByMonth(runId: string, months: number): Promise<MonthlySentiment[]>;
-  /** Al arrancar: los análisis que quedaron a medias por un reinicio se marcan como fallidos. */
-  failInterrupted(reason: string): Promise<number>;
+  /**
+   * Toma de forma atómica el siguiente análisis pendiente y listo (available_at <= ahora),
+   * lo pasa a "running" y lo devuelve. Dos workers nunca obtienen el mismo análisis.
+   */
+  claimNext(): Promise<AnalysisRun | null>;
+  /**
+   * Al arrancar: los análisis que quedaron "running" por un reinicio vuelven a la cola si les
+   * quedan intentos; si no, se marcan como fallidos con `reason`.
+   */
+  recoverInterrupted(reason: string): Promise<{ requeued: number; failed: number }>;
 }

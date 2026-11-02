@@ -1,8 +1,11 @@
-import { AnalysisRun, type AnalysisStatus } from '../../../domain/entities/AnalysisRun.js';
+import { AnalysisRun, type AnalysisStatus, MAX_ANALYSIS_ATTEMPTS } from '../../../domain/entities/AnalysisRun.js';
 import type { InsightReport, Recommendation, RecommendationPriority, TopicStat } from '../../../domain/model/Insight.js';
 import type { AnalysisRepository, AnalysisResults } from '../../../domain/ports/Repositories.js';
 import type { MonthlySentiment } from '../../../domain/services/SentimentTrend.js';
 import type { Database } from '../Database.js';
+
+/** Lo mínimo que se necesita para ejecutar SQL (pool o cliente de transacción). */
+type Queryable = { query(text: string, params?: unknown[]): Promise<unknown> };
 
 interface RunRow {
   id: string;
@@ -15,6 +18,8 @@ interface RunRow {
   negative_count: number | null;
   average_score: number | null;
   error: string | null;
+  attempts: number;
+  available_at: Date;
   created_at: Date;
   started_at: Date | null;
   finished_at: Date | null;
@@ -47,13 +52,53 @@ export class PgAnalysisRepository implements AnalysisRepository {
   constructor(private readonly db: Database) {}
 
   async save(run: AnalysisRun): Promise<void> {
-    await this.db.query(
-      `INSERT INTO analysis_runs (id, business_id, status, provider, review_count, error, created_at, started_at, finished_at)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-       ON CONFLICT (id) DO UPDATE SET status = EXCLUDED.status, error = EXCLUDED.error,
-         started_at = EXCLUDED.started_at, finished_at = EXCLUDED.finished_at`,
-      [run.id, run.businessId, run.status, run.provider, run.reviewCount, run.error, run.createdAt, run.startedAt, run.finishedAt],
+    await PgAnalysisRepository.upsert(this.db, run);
+  }
+
+  /** Funciona tanto con el pool como con el cliente de una transacción abierta. */
+  private static async upsert(db: Queryable, run: AnalysisRun): Promise<void> {
+    await db.query(
+      `INSERT INTO analysis_runs (id, business_id, status, provider, review_count, error, attempts, available_at,
+                                  created_at, started_at, finished_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+       ON CONFLICT (id) DO UPDATE SET status = EXCLUDED.status, error = EXCLUDED.error, attempts = EXCLUDED.attempts,
+         available_at = EXCLUDED.available_at, started_at = EXCLUDED.started_at, finished_at = EXCLUDED.finished_at`,
+      [
+        run.id,
+        run.businessId,
+        run.status,
+        run.provider,
+        run.reviewCount,
+        run.error,
+        run.attempts,
+        run.availableAt,
+        run.createdAt,
+        run.startedAt,
+        run.finishedAt,
+      ],
     );
+  }
+
+  /**
+   * Cola de trabajos sobre PostgreSQL: FOR UPDATE SKIP LOCKED bloquea la fila elegida y hace que
+   * otro worker concurrente salte a la siguiente, sin esperas ni dobles ejecuciones. La transición
+   * a "running" la hace la entidad (run.start()), no el SQL, para no duplicar reglas de dominio.
+   */
+  async claimNext(): Promise<AnalysisRun | null> {
+    return this.db.transaction(async (client) => {
+      const { rows } = await client.query<RunRow>(
+        `SELECT * FROM analysis_runs
+          WHERE status = 'pending' AND available_at <= now()
+          ORDER BY available_at, created_at
+          LIMIT 1
+          FOR UPDATE SKIP LOCKED`,
+      );
+      if (!rows[0]) return null;
+      const run = PgAnalysisRepository.toDomain(rows[0]);
+      run.start();
+      await PgAnalysisRepository.upsert(client, run);
+      return run;
+    });
   }
 
   async findById(id: string): Promise<AnalysisRun | null> {
@@ -100,9 +145,9 @@ export class PgAnalysisRepository implements AnalysisRepository {
       const s = results.sentiment;
       await client.query(
         `UPDATE analysis_runs SET status = $2, finished_at = $3, positive_count = $4, neutral_count = $5,
-                negative_count = $6, average_score = $7, review_count = $8
+                negative_count = $6, average_score = $7, review_count = $8, error = $9
           WHERE id = $1`,
-        [run.id, run.status, run.finishedAt, s.positive, s.neutral, s.negative, s.averageScore, results.classifications.length],
+        [run.id, run.status, run.finishedAt, s.positive, s.neutral, s.negative, s.averageScore, results.classifications.length, run.error],
       );
 
       const c = results.classifications;
@@ -238,13 +283,23 @@ export class PgAnalysisRepository implements AnalysisRepository {
     }));
   }
 
-  async failInterrupted(reason: string): Promise<number> {
-    const result = await this.db.query(
-      `UPDATE analysis_runs SET status = 'failed', error = $1, finished_at = now()
-        WHERE status IN ('pending', 'running')`,
-      [reason],
+  async recoverInterrupted(reason: string): Promise<{ requeued: number; failed: number }> {
+    // Un solo proceso ejecuta análisis: al arrancar, todo lo que figure "running" quedó huérfano.
+    const { rows } = await this.db.query<{ status: AnalysisStatus }>(
+      `UPDATE analysis_runs
+          SET status = CASE WHEN attempts < $1 THEN 'pending' ELSE 'failed' END,
+              error = $2,
+              started_at = NULL,
+              available_at = now(),
+              finished_at = CASE WHEN attempts < $1 THEN NULL ELSE now() END
+        WHERE status = 'running'
+        RETURNING status`,
+      [MAX_ANALYSIS_ATTEMPTS, reason],
     );
-    return result.rowCount ?? 0;
+    return {
+      requeued: rows.filter((r) => r.status === 'pending').length,
+      failed: rows.filter((r) => r.status === 'failed').length,
+    };
   }
 
   private static toDomain(row: RunRow): AnalysisRun {
@@ -255,6 +310,8 @@ export class PgAnalysisRepository implements AnalysisRepository {
       provider: row.provider,
       reviewCount: row.review_count,
       error: row.error,
+      attempts: row.attempts,
+      availableAt: row.available_at,
       createdAt: row.created_at,
       startedAt: row.started_at,
       finishedAt: row.finished_at,

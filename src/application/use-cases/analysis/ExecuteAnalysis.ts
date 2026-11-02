@@ -1,3 +1,4 @@
+import type { AnalysisRun } from '../../../domain/entities/AnalysisRun.js';
 import type { Review } from '../../../domain/entities/Review.js';
 import { AnalyzerError, NotFoundError } from '../../../domain/errors/DomainError.js';
 import type { BusinessContext, ReviewClassification, ReviewText, TopicDefinition } from '../../../domain/model/Insight.js';
@@ -9,6 +10,8 @@ import type { InsightAggregator } from '../../../domain/services/InsightAggregat
 const TOPIC_SAMPLE_SIZE = 120;
 const MAX_TOPICS = 10;
 const CLASSIFY_CONCURRENCY = 2;
+/** Espera antes de reintentar: 30 s tras el primer intento, 60 s tras el segundo… */
+export const RETRY_BASE_DELAY_MS = 30_000;
 
 /**
  * Orquesta el pipeline de IA (patrón Pipeline / Template Method a nivel de caso de uso):
@@ -28,18 +31,16 @@ export class ExecuteAnalysis {
     private readonly maxReviews: number,
   ) {}
 
-  async execute(runId: string): Promise<void> {
-    const run = await this.analyses.findById(runId);
-    if (!run) throw new NotFoundError(`Análisis ${runId} no encontrado`);
-
-    const business = await this.businesses.findById(run.businessId);
-    if (!business) throw new NotFoundError('Negocio no encontrado');
-
-    run.start();
-    await this.analyses.save(run);
+  /**
+   * Ejecuta un análisis ya tomado de la cola (estado "running"). Ante un error transitorio de la IA
+   * (saturación, cuota) lo devuelve a la cola con espera creciente; si no, lo marca como fallido.
+   */
+  async process(run: AnalysisRun): Promise<void> {
     const startedAt = Date.now();
-
     try {
+      const business = await this.businesses.findById(run.businessId);
+      if (!business) throw new NotFoundError('Negocio no encontrado');
+
       const context: BusinessContext = { name: business.name, category: business.category, city: business.city };
       const reviews = (await this.reviews.listForAnalysis(business.id, this.maxReviews)).map(ExecuteAnalysis.toText);
 
@@ -57,11 +58,20 @@ export class ExecuteAnalysis {
         recommendations,
         sentiment: stats.sentiment,
       });
-      this.logger.info({ runId, reviews: reviews.length, topics: stats.topics.length, ms: Date.now() - startedAt }, 'Análisis completado');
+      this.logger.info(
+        { runId: run.id, attempt: run.attempts, reviews: reviews.length, topics: stats.topics.length, ms: Date.now() - startedAt },
+        'Análisis completado',
+      );
     } catch (err) {
       const message = err instanceof AnalyzerError ? err.message : 'Ocurrió un error inesperado durante el análisis. Intenta de nuevo.';
-      this.logger.error({ runId, err }, 'Análisis fallido');
-      run.fail(message);
+      if (err instanceof AnalyzerError && err.retryable && run.canRetry) {
+        const delayMs = RETRY_BASE_DELAY_MS * run.attempts;
+        this.logger.warn({ runId: run.id, attempt: run.attempts, delayMs, err }, 'Análisis reprogramado por un error transitorio');
+        run.retryLater(message, delayMs);
+      } else {
+        this.logger.error({ runId: run.id, attempt: run.attempts, err }, 'Análisis fallido');
+        run.fail(message);
+      }
       await this.analyses.save(run);
     }
   }

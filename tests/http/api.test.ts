@@ -3,6 +3,7 @@ import request from 'supertest';
 import { beforeAll, describe, expect, it } from 'vitest';
 import { type AppDependencies, createApp } from '../../src/app.js';
 import { GetAnalysis, GetDashboard, GetSentimentTrend } from '../../src/application/use-cases/analysis/AnalysisQueries.js';
+import { AnalysisWorker } from '../../src/application/use-cases/analysis/AnalysisWorker.js';
 import { ExecuteAnalysis } from '../../src/application/use-cases/analysis/ExecuteAnalysis.js';
 import { RequestAnalysis } from '../../src/application/use-cases/analysis/RequestAnalysis.js';
 import { AuthenticateUser } from '../../src/application/use-cases/auth/AuthenticateUser.js';
@@ -34,15 +35,7 @@ import { AnalysisController } from '../../src/interfaces/http/controllers/Analys
 import { AuthController } from '../../src/interfaces/http/controllers/AuthController.js';
 import { BusinessController } from '../../src/interfaces/http/controllers/BusinessController.js';
 import { ReviewController } from '../../src/interfaces/http/controllers/ReviewController.js';
-import {
-  FakeHasher,
-  ImmediateScheduler,
-  InMemoryAnalyses,
-  InMemoryBusinesses,
-  InMemoryReviews,
-  InMemoryUsers,
-  silentLogger,
-} from '../fakes.js';
+import { FakeHasher, InMemoryAnalyses, InMemoryBusinesses, InMemoryReviews, InMemoryUsers, silentLogger } from '../fakes.js';
 
 /**
  * Pruebas de integración de la capa HTTP: la app Express real (middlewares de seguridad,
@@ -59,6 +52,9 @@ function buildApp() {
   const analyzer = new HeuristicReviewAnalyzer();
   const access = new BusinessAccess(businesses);
   const execute = new ExecuteAnalysis(analyses, businesses, reviews, analyzer, new InsightAggregator(), silentLogger, 500);
+  const worker = new AnalysisWorker(analyses, execute, silentLogger);
+  // Cola de prueba: al recibir el aviso vacía la cola en el acto (como haría PollingJobRunner).
+  const jobs = { wake: () => void worker.drain() };
 
   const deps: AppDependencies = {
     config: { FRONTEND_ORIGIN: 'http://localhost:5180', TRUST_PROXY: false },
@@ -90,7 +86,7 @@ function buildApp() {
       new DeleteReview(access, reviews),
     ),
     analysisController: new AnalysisController(
-      new RequestAnalysis(access, reviews, analyses, analyzer, new ImmediateScheduler(), execute),
+      new RequestAnalysis(access, reviews, analyses, analyzer, jobs),
       new GetAnalysis(access, analyses),
       new GetDashboard(access, reviews, analyses, new InsightComparator()),
       new GetSentimentTrend(access, analyses, new SentimentTrend()),

@@ -1,6 +1,7 @@
-import { beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { GetDashboard } from '../../src/application/use-cases/analysis/AnalysisQueries.js';
-import { ExecuteAnalysis } from '../../src/application/use-cases/analysis/ExecuteAnalysis.js';
+import { AnalysisWorker } from '../../src/application/use-cases/analysis/AnalysisWorker.js';
+import { ExecuteAnalysis, RETRY_BASE_DELAY_MS } from '../../src/application/use-cases/analysis/ExecuteAnalysis.js';
 import { RequestAnalysis } from '../../src/application/use-cases/analysis/RequestAnalysis.js';
 import { AuthenticateUser } from '../../src/application/use-cases/auth/AuthenticateUser.js';
 import { RegisterUser } from '../../src/application/use-cases/auth/RegisterUser.js';
@@ -16,11 +17,11 @@ import { HeuristicReviewAnalyzer } from '../../src/infrastructure/ai/HeuristicRe
 import {
   FakeHasher,
   FakeTokens,
-  ImmediateScheduler,
   InMemoryAnalyses,
   InMemoryBusinesses,
   InMemoryReviews,
   InMemoryUsers,
+  ManualQueue,
   silentLogger,
 } from '../fakes.js';
 
@@ -53,7 +54,7 @@ describe('Importación y análisis', () => {
   let businesses: InMemoryBusinesses;
   let reviews: InMemoryReviews;
   let analyses: InMemoryAnalyses;
-  let scheduler: ImmediateScheduler;
+  let queue: ManualQueue;
   let businessId: string;
 
   const build = (analyzer: ReviewAnalyzer) => {
@@ -61,7 +62,8 @@ describe('Importación y análisis', () => {
     const execute = new ExecuteAnalysis(analyses, businesses, reviews, analyzer, new InsightAggregator(), silentLogger, 500);
     return {
       importReviews: new ImportReviews(access, reviews),
-      requestAnalysis: new RequestAnalysis(access, reviews, analyses, analyzer, scheduler, execute),
+      requestAnalysis: new RequestAnalysis(access, reviews, analyses, analyzer, queue),
+      worker: new AnalysisWorker(analyses, execute, silentLogger),
     };
   };
 
@@ -69,7 +71,7 @@ describe('Importación y análisis', () => {
     businesses = new InMemoryBusinesses();
     reviews = new InMemoryReviews();
     analyses = new InMemoryAnalyses();
-    scheduler = new ImmediateScheduler();
+    queue = new ManualQueue();
     businessId = (await new CreateBusiness(businesses).execute('owner', { name: 'Café Galeras', category: 'cafeteria' })).id;
   });
 
@@ -91,7 +93,7 @@ describe('Importación y análisis', () => {
   });
 
   it('ejecuta el pipeline completo con el analizador heurístico', async () => {
-    const { importReviews, requestAnalysis } = build(new HeuristicReviewAnalyzer());
+    const { importReviews, requestAnalysis, worker } = build(new HeuristicReviewAnalyzer());
     await importReviews.execute(
       businessId,
       'owner',
@@ -105,7 +107,7 @@ describe('Importación y análisis', () => {
     );
 
     const run = await requestAnalysis.execute(businessId, 'owner');
-    await scheduler.flush();
+    await worker.drain();
 
     const stored = await analyses.findById(run.id);
     expect(stored?.status).toBe('completed');
@@ -132,24 +134,25 @@ describe('Importación y análisis', () => {
     await expect(requestAnalysis.execute(businessId, 'owner')).rejects.toThrow(ConflictError);
   });
 
-  it('si la IA falla, el análisis queda "failed" con un mensaje apto para el usuario', async () => {
+  it('si la IA falla sin remedio, el análisis queda "failed" con un mensaje apto para el usuario', async () => {
     const broken: ReviewAnalyzer = {
       providerName: 'roto',
       batchSize: 10,
       discoverTopics: async () => {
-        throw new AnalyzerError('El servicio de IA está ocupado.', true);
+        throw new AnalyzerError('La credencial del servicio de IA no es válida.');
       },
       classify: async () => [],
       recommend: async () => [],
     };
-    const { importReviews, requestAnalysis } = build(broken);
+    const { importReviews, requestAnalysis, worker } = build(broken);
     await importReviews.execute(businessId, 'owner', [{ content: 'Todo bien' }], 'manual');
     const run = await requestAnalysis.execute(businessId, 'owner');
-    await scheduler.flush();
+    await worker.drain();
 
     const stored = await analyses.findById(run.id);
     expect(stored?.status).toBe('failed');
-    expect(stored?.error).toBe('El servicio de IA está ocupado.');
+    expect(stored?.error).toBe('La credencial del servicio de IA no es válida.');
+    expect(stored?.attempts).toBe(1); // un error no transitorio no se reintenta
   });
 
   it('el segundo análisis recibe la taxonomía anterior y el dashboard muestra la evolución', async () => {
@@ -165,7 +168,7 @@ describe('Importación y análisis', () => {
       classify: (batch) => heuristic.classify(batch),
       recommend: (stats, ctx) => heuristic.recommend(stats, ctx),
     };
-    const { importReviews, requestAnalysis } = build(spy);
+    const { importReviews, requestAnalysis, worker } = build(spy);
     const dashboard = new GetDashboard(new BusinessAccess(businesses), reviews, analyses, new InsightComparator());
 
     await importReviews.execute(
@@ -178,7 +181,7 @@ describe('Importación y análisis', () => {
       'csv',
     );
     await requestAnalysis.execute(businessId, 'owner');
-    await scheduler.flush();
+    await worker.drain();
     expect((await dashboard.execute(businessId, 'owner')).comparison).toBeNull();
 
     await importReviews.execute(
@@ -192,7 +195,7 @@ describe('Importación y análisis', () => {
     );
     await new Promise((r) => setTimeout(r, 5)); // createdAt distinto para ordenar los análisis
     await requestAnalysis.execute(businessId, 'owner');
-    await scheduler.flush();
+    await worker.drain();
 
     expect(received[0]).toEqual([]);
     expect(received[1]).toContain('tiempo_espera');
@@ -201,6 +204,66 @@ describe('Importación y análisis', () => {
     expect(d.previousRun).not.toBeNull();
     expect(d.comparison!.negativeShareDelta).toBeLessThan(0);
     expect(d.comparison!.topics.find((t) => t.key === 'tiempo_espera')?.trend).toBe('improved');
+  });
+
+  describe('cola persistente', () => {
+    afterEach(() => vi.useRealTimers());
+
+    it('solicitar un análisis lo deja en la cola y avisa al worker, sin ejecutarlo en la petición', async () => {
+      const { importReviews, requestAnalysis, worker } = build(new HeuristicReviewAnalyzer());
+      await importReviews.execute(businessId, 'owner', [{ content: 'Muy rico todo' }], 'manual');
+      const run = await requestAnalysis.execute(businessId, 'owner');
+
+      expect(run.status).toBe('pending');
+      expect(queue.wakes).toBe(1);
+      expect(await worker.drain()).toBe(1);
+      expect((await analyses.findById(run.id))?.status).toBe('completed');
+      expect(await worker.drain()).toBe(0); // nunca se procesa dos veces
+    });
+
+    it('ante un error transitorio reintenta con espera creciente y falla al agotar los intentos', async () => {
+      vi.useFakeTimers({ toFake: ['Date'] });
+      let calls = 0;
+      const saturated: ReviewAnalyzer = {
+        providerName: 'saturado',
+        batchSize: 10,
+        discoverTopics: async () => {
+          calls++;
+          throw new AnalyzerError('El servicio de IA está saturado.', true);
+        },
+        classify: async () => [],
+        recommend: async () => [],
+      };
+      const { importReviews, requestAnalysis, worker } = build(saturated);
+      await importReviews.execute(businessId, 'owner', [{ content: 'Todo bien' }], 'manual');
+      const run = await requestAnalysis.execute(businessId, 'owner');
+
+      await worker.drain();
+      let stored = (await analyses.findById(run.id))!;
+      expect(stored).toMatchObject({ status: 'pending', attempts: 1, error: 'El servicio de IA está saturado.' });
+      expect(await worker.drain()).toBe(0); // todavía no le toca: espera RETRY_BASE_DELAY_MS
+
+      vi.setSystemTime(Date.now() + RETRY_BASE_DELAY_MS + 1);
+      await worker.drain();
+      expect((await analyses.findById(run.id))!.attempts).toBe(2);
+
+      vi.setSystemTime(Date.now() + 2 * RETRY_BASE_DELAY_MS + 1);
+      await worker.drain();
+      stored = (await analyses.findById(run.id))!;
+      expect(stored).toMatchObject({ status: 'failed', attempts: 3 });
+      expect(calls).toBe(3);
+    });
+
+    it('tras un reinicio, lo que quedó "running" vuelve a la cola y se completa', async () => {
+      const { importReviews, requestAnalysis, worker } = build(new HeuristicReviewAnalyzer());
+      await importReviews.execute(businessId, 'owner', [{ content: 'Excelente atención' }], 'manual');
+      const run = await requestAnalysis.execute(businessId, 'owner');
+      (await analyses.claimNext())!; // el proceso "muere" justo después de tomar el trabajo
+
+      expect(await analyses.recoverInterrupted('Reinicio')).toEqual({ requeued: 1, failed: 0 });
+      expect(await worker.drain()).toBe(1);
+      expect((await analyses.findById(run.id))!).toMatchObject({ status: 'completed', attempts: 2, error: null });
+    });
   });
 
   it('descarta IDs y temas que el modelo invente', async () => {
@@ -214,10 +277,10 @@ describe('Importación y análisis', () => {
       ],
       recommend: async () => [],
     };
-    const { importReviews, requestAnalysis } = build(hallucinating);
+    const { importReviews, requestAnalysis, worker } = build(hallucinating);
     await importReviews.execute(businessId, 'owner', [{ content: 'Demasiada espera' }], 'manual');
     const run = await requestAnalysis.execute(businessId, 'owner');
-    await scheduler.flush();
+    await worker.drain();
 
     const results = analyses.results.get(run.id)!;
     expect(results.classifications).toHaveLength(1);

@@ -12,7 +12,7 @@ import type {
   ReviewWithInsight,
   UserRepository,
 } from '../src/domain/ports/Repositories.js';
-import type { Logger, PasswordHasher, TaskScheduler, TokenPayload, TokenService } from '../src/domain/ports/Services.js';
+import type { JobQueue, Logger, PasswordHasher, TokenPayload, TokenService } from '../src/domain/ports/Services.js';
 import type { MonthlySentiment } from '../src/domain/services/SentimentTrend.js';
 import type { Email } from '../src/domain/value-objects/Email.js';
 
@@ -140,8 +140,29 @@ export class InMemoryAnalyses implements AnalysisRepository {
     }
     return [...byMonth.values()];
   }
-  async failInterrupted() {
-    return 0;
+  async claimNext() {
+    const now = Date.now();
+    const next = [...this.runs.values()]
+      .filter((r) => r.status === 'pending' && r.availableAt.getTime() <= now)
+      .sort((a, b) => a.availableAt.getTime() - b.availableAt.getTime() || a.createdAt.getTime() - b.createdAt.getTime())[0];
+    if (!next) return null;
+    next.start();
+    return next;
+  }
+  async recoverInterrupted(reason: string) {
+    let requeued = 0;
+    let failed = 0;
+    for (const r of this.runs.values()) {
+      if (r.status !== 'running') continue;
+      if (r.canRetry) {
+        r.retryLater(reason, 0);
+        requeued++;
+      } else {
+        r.fail(reason);
+        failed++;
+      }
+    }
+    return { requeued, failed };
   }
 }
 
@@ -164,14 +185,11 @@ export class FakeTokens implements TokenService {
   }
 }
 
-/** Ejecuta las tareas en el acto y permite esperarlas desde el test. */
-export class ImmediateScheduler implements TaskScheduler {
-  readonly tasks: Promise<void>[] = [];
-  schedule(_name: string, task: () => Promise<void>) {
-    this.tasks.push(task());
-  }
-  async flush() {
-    await Promise.all(this.tasks);
+/** Cola de prueba: registra los avisos; el test decide cuándo vaciar la cola con el worker. */
+export class ManualQueue implements JobQueue {
+  wakes = 0;
+  wake() {
+    this.wakes++;
   }
 }
 
