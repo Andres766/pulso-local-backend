@@ -1,9 +1,15 @@
 import type { Request, Response } from 'express';
-import type { ClearReviews, ExportReviews, ImportReviews, ListReviews } from '../../../application/use-cases/reviews/ReviewUseCases.js';
+import type {
+  ClearReviews,
+  DeleteReview,
+  ExportReviews,
+  ImportReviews,
+  ListReviews,
+} from '../../../application/use-cases/reviews/ReviewUseCases.js';
 import { ValidationError } from '../../../domain/errors/DomainError.js';
 import type { CsvReviewExporter } from '../../../infrastructure/csv/CsvReviewExporter.js';
 import type { ReviewSourceParser } from '../../../infrastructure/csv/ReviewTextParsers.js';
-import { listReviewsQuery, pasteReviewsSchema, uuidParam } from '../schemas.js';
+import { listReviewsQuery, pasteReviewsSchema, reviewParams, uuidParam } from '../schemas.js';
 
 export class ReviewController {
   constructor(
@@ -14,6 +20,7 @@ export class ReviewController {
     private readonly csvParser: ReviewSourceParser,
     private readonly textParser: ReviewSourceParser,
     private readonly exporter: CsvReviewExporter,
+    private readonly deleteReview: DeleteReview,
   ) {}
 
   list = async (req: Request, res: Response) => {
@@ -55,6 +62,12 @@ export class ReviewController {
     const { businessName, items } = await this.exportReviews.execute(id, req.userId!);
     const filename = `resenas-${ReviewController.slug(businessName)}-${new Date().toISOString().slice(0, 10)}.csv`;
     res.type('text/csv; charset=utf-8').attachment(filename).send(this.exporter.serialize(items));
+  };
+
+  remove = async (req: Request, res: Response) => {
+    const { id, reviewId } = reviewParams.parse(req.params);
+    await this.deleteReview.execute(id, req.userId!, reviewId);
+    res.status(204).end();
   };
 
   clear = async (req: Request, res: Response) => {

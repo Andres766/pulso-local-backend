@@ -16,7 +16,13 @@ import {
   ListBusinesses,
   UpdateBusiness,
 } from '../../src/application/use-cases/businesses/BusinessUseCases.js';
-import { ClearReviews, ExportReviews, ImportReviews, ListReviews } from '../../src/application/use-cases/reviews/ReviewUseCases.js';
+import {
+  ClearReviews,
+  DeleteReview,
+  ExportReviews,
+  ImportReviews,
+  ListReviews,
+} from '../../src/application/use-cases/reviews/ReviewUseCases.js';
 import { InsightAggregator } from '../../src/domain/services/InsightAggregator.js';
 import { InsightComparator } from '../../src/domain/services/InsightComparator.js';
 import { HeuristicReviewAnalyzer } from '../../src/infrastructure/ai/HeuristicReviewAnalyzer.js';
@@ -80,6 +86,7 @@ function buildApp() {
       new CsvReviewParser(),
       new PastedTextParser(),
       new CsvReviewExporter(),
+      new DeleteReview(access, reviews),
     ),
     analysisController: new AnalysisController(
       new RequestAnalysis(access, reviews, analyses, analyzer, new ImmediateScheduler(), execute),
@@ -183,6 +190,33 @@ describe('API HTTP', () => {
         .send({ name: 'Tienda', category: 'tienda', ownerId: 'hack' });
       expect(res.status).toBe(400);
       expect((await request(app).get("/api/businesses/1' OR 1=1--").set('Cookie', owner)).status).toBe(400);
+    });
+  });
+
+  describe('reseñas individuales', () => {
+    it('el dueño elimina una reseña suya; el intruso y los IDs ajenos reciben 404', async () => {
+      const otherBiz = await request(app)
+        .post('/api/businesses')
+        .set(CSRF)
+        .set('Cookie', owner)
+        .send({ name: 'Tienda Dos', category: 'tienda' });
+      await request(app)
+        .post(`/api/businesses/${otherBiz.body.id}/reviews/text`)
+        .set(CSRF)
+        .set('Cookie', owner)
+        .send({ text: 'Reseña de spam para borrar' });
+      const list = await request(app).get(`/api/businesses/${otherBiz.body.id}/reviews`).set('Cookie', owner);
+      const reviewId: string = list.body.items[0].id;
+      const url = `/api/businesses/${otherBiz.body.id}/reviews/${reviewId}`;
+
+      expect((await request(app).delete(url).set(CSRF).set('Cookie', intruder)).status).toBe(404);
+      // La reseña existe pero pertenece a otro negocio: tampoco se puede borrar por esa vía.
+      expect((await request(app).delete(`/api/businesses/${businessId}/reviews/${reviewId}`).set(CSRF).set('Cookie', owner)).status).toBe(
+        404,
+      );
+      expect((await request(app).delete(url).set(CSRF).set('Cookie', owner)).status).toBe(204);
+      expect((await request(app).delete(url).set(CSRF).set('Cookie', owner)).status).toBe(404);
+      expect((await request(app).get(`/api/businesses/${otherBiz.body.id}/reviews`).set('Cookie', owner)).body.total).toBe(0);
     });
   });
 

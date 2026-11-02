@@ -10,6 +10,11 @@ import { SENTIMENT_LABELS } from '../../domain/value-objects/Sentiment.js';
 
 export const uuidParam = z.object({ id: z.string().uuid('Identificador no válido') });
 
+export const reviewParams = z.object({
+  id: z.string().uuid('Identificador no válido'),
+  reviewId: z.string().uuid('Identificador no válido'),
+});
+
 export const registerSchema = z
   .object({
     email: z.string().trim().max(254),

@@ -14,7 +14,7 @@ import {
   ListBusinesses,
   UpdateBusiness,
 } from './application/use-cases/businesses/BusinessUseCases.js';
-import { ClearReviews, ExportReviews, ImportReviews, ListReviews } from './application/use-cases/reviews/ReviewUseCases.js';
+import { ClearReviews, DeleteReview, ExportReviews, ImportReviews, ListReviews } from './application/use-cases/reviews/ReviewUseCases.js';
 import type { AppConfig } from './config/env.js';
 import type { ReviewAnalyzer } from './domain/ports/ReviewAnalyzer.js';
 import { InsightAggregator } from './domain/services/InsightAggregator.js';
@@ -106,6 +106,7 @@ export class Container implements AppDependencies {
       new CsvReviewParser(),
       new PastedTextParser(),
       new CsvReviewExporter(),
+      new DeleteReview(access, reviews),
     );
     this.analysisController = new AnalysisController(
       new RequestAnalysis(access, reviews, this.analyses, this.analyzer, this.scheduler, executeAnalysis),

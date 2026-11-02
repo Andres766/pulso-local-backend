@@ -48,6 +48,8 @@ export interface ReviewRepository {
   /** Reseñas más recientes primero, hasta `limit`, para alimentar el análisis. */
   listForAnalysis(businessId: string, limit: number): Promise<Review[]>;
   search(businessId: string, filter: ReviewFilter): Promise<{ items: ReviewWithInsight[]; total: number }>;
+  /** Borra una reseña solo si pertenece a ese negocio. Devuelve false si no existía allí. */
+  deleteOne(businessId: string, reviewId: string): Promise<boolean>;
   deleteAll(businessId: string): Promise<number>;
 }
 

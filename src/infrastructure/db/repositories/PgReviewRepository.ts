@@ -125,6 +125,12 @@ export class PgReviewRepository implements ReviewRepository {
     };
   }
 
+  async deleteOne(businessId: string, reviewId: string): Promise<boolean> {
+    // El negocio va en el WHERE: aunque alguien conozca el ID de una reseña ajena, no puede borrarla.
+    const result = await this.db.query('DELETE FROM reviews WHERE id = $1 AND business_id = $2', [reviewId, businessId]);
+    return (result.rowCount ?? 0) > 0;
+  }
+
   async deleteAll(businessId: string): Promise<number> {
     const result = await this.db.query('DELETE FROM reviews WHERE business_id = $1', [businessId]);
     return result.rowCount ?? 0;

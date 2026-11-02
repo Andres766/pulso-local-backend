@@ -48,6 +48,7 @@ export function createApiRouter(c: AppDependencies): Router {
   router.post('/businesses/:id/reviews/csv', auth, csvUpload.single('file'), c.reviewController.uploadCsv);
   router.post('/businesses/:id/reviews/text', auth, c.reviewController.paste);
   router.delete('/businesses/:id/reviews', auth, c.reviewController.clear);
+  router.delete('/businesses/:id/reviews/:reviewId', auth, c.reviewController.remove);
 
   // Análisis de IA y dashboard
   router.get('/businesses/:id/dashboard', auth, c.analysisController.dashboard);

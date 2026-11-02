@@ -70,6 +70,12 @@ export class InMemoryReviews implements ReviewRepository {
       items: all.slice(f.offset, f.offset + f.limit).map((review) => ({ review, sentiment: null, sentimentScore: null, topics: [] })),
     };
   }
+  async deleteOne(businessId: string, reviewId: string) {
+    const i = this.items.findIndex((r) => r.id === reviewId && r.businessId === businessId);
+    if (i === -1) return false;
+    this.items.splice(i, 1);
+    return true;
+  }
   async deleteAll(id: string) {
     const before = this.items.length;
     this.items.splice(0, this.items.length, ...this.items.filter((r) => r.businessId !== id));

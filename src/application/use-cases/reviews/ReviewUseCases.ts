@@ -1,5 +1,5 @@
 import { Review, type ReviewSource } from '../../../domain/entities/Review.js';
-import { ValidationError } from '../../../domain/errors/DomainError.js';
+import { NotFoundError, ValidationError } from '../../../domain/errors/DomainError.js';
 import type { ReviewFilter, ReviewRepository, ReviewWithInsight } from '../../../domain/ports/Repositories.js';
 import { Rating } from '../../../domain/value-objects/Rating.js';
 import type { BusinessAccess } from '../businesses/BusinessAccess.js';
@@ -99,6 +99,20 @@ export class ExportReviews {
     const business = await this.access.requireOwned(businessId, userId);
     const { items } = await this.reviews.search(businessId, { limit: MAX_EXPORT_ROWS, offset: 0 });
     return { businessName: business.name, items };
+  }
+}
+
+export class DeleteReview {
+  constructor(
+    private readonly access: BusinessAccess,
+    private readonly reviews: ReviewRepository,
+  ) {}
+
+  async execute(businessId: string, userId: string, reviewId: string): Promise<void> {
+    await this.access.requireOwned(businessId, userId);
+    if (!(await this.reviews.deleteOne(businessId, reviewId))) {
+      throw new NotFoundError('Reseña no encontrada');
+    }
   }
 }
 
