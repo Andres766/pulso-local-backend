@@ -2,7 +2,7 @@ import { ApiError, FinishReason } from '@google/genai';
 import { describe, expect, it } from 'vitest';
 import { AnalyzerError } from '../src/domain/errors/DomainError.js';
 import { ClaudeReviewAnalyzer } from '../src/infrastructure/ai/ClaudeReviewAnalyzer.js';
-import { GeminiReviewAnalyzer, type GeminiClient } from '../src/infrastructure/ai/GeminiReviewAnalyzer.js';
+import { type GeminiClient, GeminiReviewAnalyzer } from '../src/infrastructure/ai/GeminiReviewAnalyzer.js';
 import { HeuristicReviewAnalyzer } from '../src/infrastructure/ai/HeuristicReviewAnalyzer.js';
 import { LlmReviewAnalyzer } from '../src/infrastructure/ai/LlmReviewAnalyzer.js';
 import { createReviewAnalyzer } from '../src/infrastructure/ai/ReviewAnalyzerFactory.js';
@@ -34,7 +34,10 @@ function fakeClient(replies: Reply[]) {
 
 const build = (replies: Reply[]) => {
   const fake = fakeClient(replies);
-  return { analyzer: new GeminiReviewAnalyzer('clave', 'modelo-principal', 'modelo-respaldo', silentLogger, fake.client), calls: fake.calls };
+  return {
+    analyzer: new GeminiReviewAnalyzer('clave', 'modelo-principal', 'modelo-respaldo', silentLogger, fake.client),
+    calls: fake.calls,
+  };
 };
 
 const reviews = [
@@ -84,8 +87,12 @@ describe('GeminiReviewAnalyzer', () => {
 
   it('rechaza respuestas bloqueadas, cortadas o que no cumplen el esquema', async () => {
     await expect(build([{ blockReason: 'SAFETY' }]).analyzer.classify(reviews, topics)).rejects.toThrow(/no pudo procesar/);
-    await expect(build([{ text: '{"results":[', finishReason: FinishReason.MAX_TOKENS }]).analyzer.classify(reviews, topics)).rejects.toThrow(/incompleta/);
-    await expect(build([{ text: '{"results":[{"id":"r1","sentiment":"feliz"}]}' }]).analyzer.classify(reviews, topics)).rejects.toThrow(/formato inesperado/);
+    await expect(
+      build([{ text: '{"results":[', finishReason: FinishReason.MAX_TOKENS }]).analyzer.classify(reviews, topics),
+    ).rejects.toThrow(/incompleta/);
+    await expect(build([{ text: '{"results":[{"id":"r1","sentiment":"feliz"}]}' }]).analyzer.classify(reviews, topics)).rejects.toThrow(
+      /formato inesperado/,
+    );
     await expect(build([{ text: 'esto no es JSON' }]).analyzer.classify(reviews, topics)).rejects.toThrow(/formato inesperado/);
   });
 });
@@ -114,6 +121,8 @@ describe('createReviewAnalyzer (Factory)', () => {
   it('exige la clave cuando el proveedor se fuerza', () => {
     expect(() => createReviewAnalyzer({ ...base, AI_PROVIDER: 'gemini' }, silentLogger)).toThrow(/GEMINI_API_KEY/);
     expect(() => createReviewAnalyzer({ ...base, AI_PROVIDER: 'claude' }, silentLogger)).toThrow(/ANTHROPIC_API_KEY/);
-    expect(createReviewAnalyzer({ ...base, AI_PROVIDER: 'heuristic', geminiApiKey: 'g' }, silentLogger)).toBeInstanceOf(HeuristicReviewAnalyzer);
+    expect(createReviewAnalyzer({ ...base, AI_PROVIDER: 'heuristic', geminiApiKey: 'g' }, silentLogger)).toBeInstanceOf(
+      HeuristicReviewAnalyzer,
+    );
   });
 });

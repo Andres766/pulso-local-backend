@@ -1,4 +1,4 @@
-import { pino, type Logger as PinoLogger } from 'pino';
+import { type Logger as PinoLogger, pino } from 'pino';
 import type { AppDependencies } from './app.js';
 import { GetAnalysis, GetDashboard } from './application/use-cases/analysis/AnalysisQueries.js';
 import { ExecuteAnalysis } from './application/use-cases/analysis/ExecuteAnalysis.js';
@@ -69,7 +69,13 @@ export class Container implements AppDependencies {
     // Aplicación
     const access = new BusinessAccess(businesses);
     const executeAnalysis = new ExecuteAnalysis(
-      this.analyses, businesses, reviews, this.analyzer, new InsightAggregator(), this.logger, MAX_REVIEWS_PER_ANALYSIS,
+      this.analyses,
+      businesses,
+      reviews,
+      this.analyzer,
+      new InsightAggregator(),
+      this.logger,
+      MAX_REVIEWS_PER_ANALYSIS,
     );
 
     // Interfaces HTTP

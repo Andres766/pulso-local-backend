@@ -41,7 +41,14 @@ export class InsightComparator {
     const topics: TopicChange[] = now.topics.map((t) => {
       const old = before.topics.find((p) => p.key === t.key);
       if (!old) {
-        return { key: t.key, name: t.name, complaintShare: t.complaintShare, previousComplaintShare: null, complaintDelta: null, trend: 'new' };
+        return {
+          key: t.key,
+          name: t.name,
+          complaintShare: t.complaintShare,
+          previousComplaintShare: null,
+          complaintDelta: null,
+          trend: 'new',
+        };
       }
       const delta = round1(t.complaintShare - old.complaintShare);
       return {

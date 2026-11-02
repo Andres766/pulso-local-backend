@@ -10,7 +10,19 @@ export interface ReviewSourceParser {
   parse(input: string): RawReviewRow[];
 }
 
-const CONTENT_ALIASES = ['texto', 'text', 'comentario', 'comentarios', 'reseña', 'resena', 'review', 'opinion', 'opinión', 'contenido', 'content'];
+const CONTENT_ALIASES = [
+  'texto',
+  'text',
+  'comentario',
+  'comentarios',
+  'reseña',
+  'resena',
+  'review',
+  'opinion',
+  'opinión',
+  'contenido',
+  'content',
+];
 const RATING_ALIASES = ['calificacion', 'calificación', 'rating', 'estrellas', 'stars', 'puntaje', 'nota'];
 const DATE_ALIASES = ['fecha', 'date', 'created_at', 'fecha_resena'];
 

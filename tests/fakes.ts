@@ -19,17 +19,31 @@ import type { Email } from '../src/domain/value-objects/Email.js';
 
 export class InMemoryUsers implements UserRepository {
   readonly items = new Map<string, User>();
-  async findById(id: string) { return this.items.get(id) ?? null; }
-  async findByEmail(email: Email) { return [...this.items.values()].find((u) => u.email.equals(email)) ?? null; }
-  async save(user: User) { this.items.set(user.id, user); }
+  async findById(id: string) {
+    return this.items.get(id) ?? null;
+  }
+  async findByEmail(email: Email) {
+    return [...this.items.values()].find((u) => u.email.equals(email)) ?? null;
+  }
+  async save(user: User) {
+    this.items.set(user.id, user);
+  }
 }
 
 export class InMemoryBusinesses implements BusinessRepository {
   readonly items = new Map<string, Business>();
-  async findById(id: string) { return this.items.get(id) ?? null; }
-  async listByOwner(ownerId: string) { return [...this.items.values()].filter((b) => b.ownerId === ownerId); }
-  async save(b: Business) { this.items.set(b.id, b); }
-  async delete(id: string) { this.items.delete(id); }
+  async findById(id: string) {
+    return this.items.get(id) ?? null;
+  }
+  async listByOwner(ownerId: string) {
+    return [...this.items.values()].filter((b) => b.ownerId === ownerId);
+  }
+  async save(b: Business) {
+    this.items.set(b.id, b);
+  }
+  async delete(id: string) {
+    this.items.delete(id);
+  }
 }
 
 export class InMemoryReviews implements ReviewRepository {
@@ -43,8 +57,12 @@ export class InMemoryReviews implements ReviewRepository {
     }
     return n;
   }
-  async countByBusiness(id: string) { return this.items.filter((r) => r.businessId === id).length; }
-  async listForAnalysis(id: string, limit: number) { return this.items.filter((r) => r.businessId === id).slice(0, limit); }
+  async countByBusiness(id: string) {
+    return this.items.filter((r) => r.businessId === id).length;
+  }
+  async listForAnalysis(id: string, limit: number) {
+    return this.items.filter((r) => r.businessId === id).slice(0, limit);
+  }
   async search(id: string, f: ReviewFilter): Promise<{ items: ReviewWithInsight[]; total: number }> {
     const all = this.items.filter((r) => r.businessId === id);
     return {
@@ -62,15 +80,29 @@ export class InMemoryReviews implements ReviewRepository {
 export class InMemoryAnalyses implements AnalysisRepository {
   readonly runs = new Map<string, AnalysisRun>();
   readonly results = new Map<string, AnalysisResults>();
-  async save(run: AnalysisRun) { this.runs.set(run.id, run); }
-  async findById(id: string) { return this.runs.get(id) ?? null; }
+  async save(run: AnalysisRun) {
+    this.runs.set(run.id, run);
+  }
+  async findById(id: string) {
+    return this.runs.get(id) ?? null;
+  }
   private byBusiness(id: string) {
     return [...this.runs.values()].filter((r) => r.businessId === id).sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
   }
-  async findLatest(id: string) { return this.byBusiness(id)[0] ?? null; }
-  async findLatestCompleted(id: string) { return this.byBusiness(id).find((r) => r.status === 'completed') ?? null; }
-  async listCompleted(id: string, limit: number) { return this.byBusiness(id).filter((r) => r.status === 'completed').slice(0, limit); }
-  async listByBusiness(id: string, limit: number) { return this.byBusiness(id).slice(0, limit); }
+  async findLatest(id: string) {
+    return this.byBusiness(id)[0] ?? null;
+  }
+  async findLatestCompleted(id: string) {
+    return this.byBusiness(id).find((r) => r.status === 'completed') ?? null;
+  }
+  async listCompleted(id: string, limit: number) {
+    return this.byBusiness(id)
+      .filter((r) => r.status === 'completed')
+      .slice(0, limit);
+  }
+  async listByBusiness(id: string, limit: number) {
+    return this.byBusiness(id).slice(0, limit);
+  }
   async completeWithResults(run: AnalysisRun, results: AnalysisResults) {
     this.runs.set(run.id, run);
     this.results.set(run.id, results);
@@ -83,25 +115,39 @@ export class InMemoryAnalyses implements AnalysisRepository {
       recommendations: [...r.recommendations],
     };
   }
-  async failInterrupted() { return 0; }
+  async failInterrupted() {
+    return 0;
+  }
 }
 
 /** Hasher trivial para tests (bcrypt real haría los tests lentos). */
 export class FakeHasher implements PasswordHasher {
-  async hash(plain: string) { return `hashed:${plain}`; }
-  async verify(plain: string, hash: string) { return hash === `hashed:${plain}`; }
+  async hash(plain: string) {
+    return `hashed:${plain}`;
+  }
+  async verify(plain: string, hash: string) {
+    return hash === `hashed:${plain}`;
+  }
 }
 
 export class FakeTokens implements TokenService {
-  sign(p: TokenPayload) { return `token:${p.sub}`; }
-  verify(t: string) { return t.startsWith('token:') ? { sub: t.slice(6), email: 'x@y.co' } : null; }
+  sign(p: TokenPayload) {
+    return `token:${p.sub}`;
+  }
+  verify(t: string) {
+    return t.startsWith('token:') ? { sub: t.slice(6), email: 'x@y.co' } : null;
+  }
 }
 
 /** Ejecuta las tareas en el acto y permite esperarlas desde el test. */
 export class ImmediateScheduler implements TaskScheduler {
   readonly tasks: Promise<void>[] = [];
-  schedule(_name: string, task: () => Promise<void>) { this.tasks.push(task()); }
-  async flush() { await Promise.all(this.tasks); }
+  schedule(_name: string, task: () => Promise<void>) {
+    this.tasks.push(task());
+  }
+  async flush() {
+    await Promise.all(this.tasks);
+  }
 }
 
 export const silentLogger: Logger = { info() {}, warn() {}, error() {} };

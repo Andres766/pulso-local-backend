@@ -10,9 +10,9 @@ import type { AnalysisController } from './interfaces/http/controllers/AnalysisC
 import type { AuthController } from './interfaces/http/controllers/AuthController.js';
 import type { BusinessController } from './interfaces/http/controllers/BusinessController.js';
 import type { ReviewController } from './interfaces/http/controllers/ReviewController.js';
-import { createApiRouter } from './interfaces/http/routes.js';
 import { errorHandler, notFoundHandler } from './interfaces/http/middlewares/errorHandler.js';
 import { apiLimiter, CSRF_HEADER, requireCsrfHeader } from './interfaces/http/middlewares/security.js';
+import { createApiRouter } from './interfaces/http/routes.js';
 
 /**
  * Lo que la capa HTTP necesita para funcionar. `Container` lo cumple en producción;

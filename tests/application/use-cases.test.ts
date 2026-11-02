@@ -7,13 +7,7 @@ import { RegisterUser } from '../../src/application/use-cases/auth/RegisterUser.
 import { BusinessAccess } from '../../src/application/use-cases/businesses/BusinessAccess.js';
 import { CreateBusiness } from '../../src/application/use-cases/businesses/BusinessUseCases.js';
 import { ImportReviews } from '../../src/application/use-cases/reviews/ReviewUseCases.js';
-import {
-  AnalyzerError,
-  AuthenticationError,
-  ConflictError,
-  NotFoundError,
-  ValidationError,
-} from '../../src/domain/errors/DomainError.js';
+import { AnalyzerError, AuthenticationError, ConflictError, NotFoundError, ValidationError } from '../../src/domain/errors/DomainError.js';
 import type { ReviewAnalyzer } from '../../src/domain/ports/ReviewAnalyzer.js';
 import { InsightAggregator } from '../../src/domain/services/InsightAggregator.js';
 import { InsightComparator } from '../../src/domain/services/InsightComparator.js';
@@ -174,12 +168,28 @@ describe('Importación y análisis', () => {
     const { importReviews, requestAnalysis } = build(spy);
     const dashboard = new GetDashboard(new BusinessAccess(businesses), reviews, analyses, new InsightComparator());
 
-    await importReviews.execute(businessId, 'owner', [{ content: 'Se demoraron una hora, pésimo', rating: 1 }, { content: 'Lento y frío', rating: 1 }], 'csv');
+    await importReviews.execute(
+      businessId,
+      'owner',
+      [
+        { content: 'Se demoraron una hora, pésimo', rating: 1 },
+        { content: 'Lento y frío', rating: 1 },
+      ],
+      'csv',
+    );
     await requestAnalysis.execute(businessId, 'owner');
     await scheduler.flush();
     expect((await dashboard.execute(businessId, 'owner')).comparison).toBeNull();
 
-    await importReviews.execute(businessId, 'owner', [{ content: 'Excelente y rapidísimo', rating: 5 }, { content: 'Delicioso, atención rápida', rating: 5 }], 'csv');
+    await importReviews.execute(
+      businessId,
+      'owner',
+      [
+        { content: 'Excelente y rapidísimo', rating: 5 },
+        { content: 'Delicioso, atención rápida', rating: 5 },
+      ],
+      'csv',
+    );
     await new Promise((r) => setTimeout(r, 5)); // createdAt distinto para ordenar los análisis
     await requestAnalysis.execute(businessId, 'owner');
     await scheduler.flush();

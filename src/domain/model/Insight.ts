@@ -1,5 +1,4 @@
-import type { SentimentLabel } from '../value-objects/Sentiment.js';
-import { Sentiment } from '../value-objects/Sentiment.js';
+import type { Sentiment, SentimentLabel } from '../value-objects/Sentiment.js';
 
 /**
  * Tipos del "lenguaje ubicuo" del análisis. La IA produce clasificaciones y borradores;

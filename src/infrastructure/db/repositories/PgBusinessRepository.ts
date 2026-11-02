@@ -20,10 +20,7 @@ export class PgBusinessRepository implements BusinessRepository {
   }
 
   async listByOwner(ownerId: string): Promise<Business[]> {
-    const { rows } = await this.db.query<BusinessRow>(
-      'SELECT * FROM businesses WHERE owner_id = $1 ORDER BY created_at ASC',
-      [ownerId],
-    );
+    const { rows } = await this.db.query<BusinessRow>('SELECT * FROM businesses WHERE owner_id = $1 ORDER BY created_at ASC', [ownerId]);
     return rows.map(PgBusinessRepository.toDomain);
   }
 

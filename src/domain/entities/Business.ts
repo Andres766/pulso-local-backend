@@ -1,15 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { NotFoundError, ValidationError } from '../errors/DomainError.js';
 
-export const BUSINESS_CATEGORIES = [
-  'restaurante',
-  'cafeteria',
-  'tienda',
-  'belleza',
-  'servicios',
-  'salud',
-  'otro',
-] as const;
+export const BUSINESS_CATEGORIES = ['restaurante', 'cafeteria', 'tienda', 'belleza', 'servicios', 'salud', 'otro'] as const;
 export type BusinessCategory = (typeof BUSINESS_CATEGORIES)[number];
 
 export interface BusinessProps {
@@ -47,12 +39,24 @@ export class Business {
     return new Business(props);
   }
 
-  get id(): string { return this.props.id; }
-  get ownerId(): string { return this.props.ownerId; }
-  get name(): string { return this.props.name; }
-  get category(): BusinessCategory { return this.props.category; }
-  get city(): string | null { return this.props.city; }
-  get createdAt(): Date { return this.props.createdAt; }
+  get id(): string {
+    return this.props.id;
+  }
+  get ownerId(): string {
+    return this.props.ownerId;
+  }
+  get name(): string {
+    return this.props.name;
+  }
+  get category(): BusinessCategory {
+    return this.props.category;
+  }
+  get city(): string | null {
+    return this.props.city;
+  }
+  get createdAt(): Date {
+    return this.props.createdAt;
+  }
 
   /**
    * Regla de autorización del dominio (multi-tenant): un usuario solo opera sus negocios.

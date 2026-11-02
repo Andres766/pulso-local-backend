@@ -1,6 +1,6 @@
 import { createHash, randomUUID } from 'node:crypto';
 import { ValidationError } from '../errors/DomainError.js';
-import { Rating } from '../value-objects/Rating.js';
+import type { Rating } from '../value-objects/Rating.js';
 
 export const REVIEW_MIN_LENGTH = 3;
 export const REVIEW_MAX_LENGTH = 2000;
@@ -40,8 +40,7 @@ export class Review {
     if (content.length > REVIEW_MAX_LENGTH) {
       throw new ValidationError(`La reseña supera los ${REVIEW_MAX_LENGTH} caracteres`);
     }
-    const authoredAt =
-      input.authoredAt && !Number.isNaN(input.authoredAt.getTime()) ? input.authoredAt : null;
+    const authoredAt = input.authoredAt && !Number.isNaN(input.authoredAt.getTime()) ? input.authoredAt : null;
     return new Review({
       id: randomUUID(),
       businessId: input.businessId,
@@ -68,14 +67,30 @@ export class Review {
     return createHash('sha256').update(content.toLowerCase()).digest('hex');
   }
 
-  get id(): string { return this.props.id; }
-  get businessId(): string { return this.props.businessId; }
-  get content(): string { return this.props.content; }
-  get contentHash(): string { return this.props.contentHash; }
-  get rating(): Rating | null { return this.props.rating; }
-  get source(): ReviewSource { return this.props.source; }
-  get authoredAt(): Date | null { return this.props.authoredAt; }
-  get createdAt(): Date { return this.props.createdAt; }
+  get id(): string {
+    return this.props.id;
+  }
+  get businessId(): string {
+    return this.props.businessId;
+  }
+  get content(): string {
+    return this.props.content;
+  }
+  get contentHash(): string {
+    return this.props.contentHash;
+  }
+  get rating(): Rating | null {
+    return this.props.rating;
+  }
+  get source(): ReviewSource {
+    return this.props.source;
+  }
+  get authoredAt(): Date | null {
+    return this.props.authoredAt;
+  }
+  get createdAt(): Date {
+    return this.props.createdAt;
+  }
 
   toJSON() {
     return {

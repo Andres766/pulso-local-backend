@@ -1,12 +1,12 @@
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { loadConfig } from '../../config/env.js';
 import { Business } from '../../domain/entities/Business.js';
 import { Review } from '../../domain/entities/Review.js';
 import { User } from '../../domain/entities/User.js';
 import { Email } from '../../domain/value-objects/Email.js';
 import { Rating } from '../../domain/value-objects/Rating.js';
-import { loadConfig } from '../../config/env.js';
 import { CsvReviewParser } from '../csv/ReviewTextParsers.js';
 import { BcryptPasswordHasher } from '../security/BcryptPasswordHasher.js';
 import { Database } from './Database.js';

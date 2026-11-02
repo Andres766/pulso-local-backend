@@ -12,8 +12,7 @@ import { RECOMMENDATION_PRIORITIES } from '../model/Insight.js';
 const MAX_QUOTES_PER_TOPIC = 3;
 const MAX_QUOTE_LENGTH = 220;
 
-const percent = (part: number, total: number): number =>
-  total === 0 ? 0 : Math.round((part / total) * 1000) / 10;
+const percent = (part: number, total: number): number => (total === 0 ? 0 : Math.round((part / total) * 1000) / 10);
 
 /**
  * Servicio de dominio puro (sin E/S): convierte clasificaciones individuales
@@ -82,11 +81,7 @@ export class InsightAggregator {
           rank: 0,
         };
       })
-      .sort(
-        (a, b) =>
-          priorityWeight(a.priority) - priorityWeight(b.priority) ||
-          (b.evidenceShare ?? 0) - (a.evidenceShare ?? 0),
-      )
+      .sort((a, b) => priorityWeight(a.priority) - priorityWeight(b.priority) || (b.evidenceShare ?? 0) - (a.evidenceShare ?? 0))
       .map((r, index) => ({ ...r, rank: index + 1 }));
   }
 

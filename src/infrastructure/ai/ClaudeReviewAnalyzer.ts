@@ -3,7 +3,7 @@ import { betaZodOutputFormat } from '@anthropic-ai/sdk/helpers/beta/zod';
 import type { z } from 'zod';
 import { AnalyzerError } from '../../domain/errors/DomainError.js';
 import type { Logger } from '../../domain/ports/Services.js';
-import { LlmReviewAnalyzer, type Effort } from './LlmReviewAnalyzer.js';
+import { type Effort, LlmReviewAnalyzer } from './LlmReviewAnalyzer.js';
 import { SYSTEM_PROMPT } from './prompts.js';
 
 /**
@@ -40,10 +40,7 @@ export class ClaudeReviewAnalyzer extends LlmReviewAnalyzer {
         messages: [{ role: 'user', content: prompt }],
       });
 
-      this.logger.info(
-        { step, model: response.model, stop: response.stop_reason, usage: response.usage },
-        'Respuesta de Claude',
-      );
+      this.logger.info({ step, model: response.model, stop: response.stop_reason, usage: response.usage }, 'Respuesta de Claude');
 
       if (response.stop_reason === 'refusal') {
         throw new AnalyzerError('La IA no pudo procesar estas reseñas. Revisa que el contenido sea apropiado.');

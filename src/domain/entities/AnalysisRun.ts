@@ -81,15 +81,33 @@ export class AnalysisRun {
     this.props.status = next;
   }
 
-  get id(): string { return this.props.id; }
-  get businessId(): string { return this.props.businessId; }
-  get status(): AnalysisStatus { return this.props.status; }
-  get provider(): string { return this.props.provider; }
-  get reviewCount(): number { return this.props.reviewCount; }
-  get error(): string | null { return this.props.error; }
-  get createdAt(): Date { return this.props.createdAt; }
-  get startedAt(): Date | null { return this.props.startedAt; }
-  get finishedAt(): Date | null { return this.props.finishedAt; }
+  get id(): string {
+    return this.props.id;
+  }
+  get businessId(): string {
+    return this.props.businessId;
+  }
+  get status(): AnalysisStatus {
+    return this.props.status;
+  }
+  get provider(): string {
+    return this.props.provider;
+  }
+  get reviewCount(): number {
+    return this.props.reviewCount;
+  }
+  get error(): string | null {
+    return this.props.error;
+  }
+  get createdAt(): Date {
+    return this.props.createdAt;
+  }
+  get startedAt(): Date | null {
+    return this.props.startedAt;
+  }
+  get finishedAt(): Date | null {
+    return this.props.finishedAt;
+  }
 
   toJSON() {
     return {

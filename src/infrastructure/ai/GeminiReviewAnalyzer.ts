@@ -2,7 +2,7 @@ import { ApiError, FinishReason, GoogleGenAI, ThinkingLevel } from '@google/gena
 import { z } from 'zod';
 import { AnalyzerError } from '../../domain/errors/DomainError.js';
 import type { Logger } from '../../domain/ports/Services.js';
-import { LlmReviewAnalyzer, type Effort } from './LlmReviewAnalyzer.js';
+import { type Effort, LlmReviewAnalyzer } from './LlmReviewAnalyzer.js';
 import { SYSTEM_PROMPT } from './prompts.js';
 
 /** Lo único que este adaptador usa del SDK: permite inyectar un cliente falso en las pruebas. */
@@ -89,7 +89,11 @@ export class GeminiReviewAnalyzer extends LlmReviewAnalyzer {
       'Respuesta de Gemini',
     );
 
-    if (response.promptFeedback?.blockReason || candidate?.finishReason === FinishReason.SAFETY || candidate?.finishReason === FinishReason.PROHIBITED_CONTENT) {
+    if (
+      response.promptFeedback?.blockReason ||
+      candidate?.finishReason === FinishReason.SAFETY ||
+      candidate?.finishReason === FinishReason.PROHIBITED_CONTENT
+    ) {
       throw new AnalyzerError('La IA no pudo procesar estas reseñas. Revisa que el contenido sea apropiado.');
     }
     if (candidate?.finishReason === FinishReason.MAX_TOKENS) {
@@ -117,10 +121,13 @@ export class GeminiReviewAnalyzer extends LlmReviewAnalyzer {
   private static translate(err: unknown, step: string): AnalyzerError {
     if (err instanceof AnalyzerError) return err;
     if (err instanceof ApiError) {
-      if (err.status === 400 && /api key/i.test(err.message)) return new AnalyzerError('La credencial del servicio de IA no es válida. Contacta al administrador.');
-      if (err.status === 401 || err.status === 403) return new AnalyzerError('La credencial del servicio de IA no es válida. Contacta al administrador.');
+      if (err.status === 400 && /api key/i.test(err.message))
+        return new AnalyzerError('La credencial del servicio de IA no es válida. Contacta al administrador.');
+      if (err.status === 401 || err.status === 403)
+        return new AnalyzerError('La credencial del servicio de IA no es válida. Contacta al administrador.');
       if (err.status === 404) return new AnalyzerError('El modelo de IA configurado no está disponible.');
-      if (err.status === 429) return new AnalyzerError('Se alcanzó el límite gratuito del servicio de IA. Intenta de nuevo en unos minutos.', true);
+      if (err.status === 429)
+        return new AnalyzerError('Se alcanzó el límite gratuito del servicio de IA. Intenta de nuevo en unos minutos.', true);
       if (TRANSIENT.has(err.status)) return new AnalyzerError('El servicio de IA está saturado. Intenta de nuevo en unos minutos.', true);
       return new AnalyzerError(`El servicio de IA falló al ${step}. Intenta de nuevo.`);
     }

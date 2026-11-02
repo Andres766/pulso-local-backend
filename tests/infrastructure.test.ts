@@ -1,12 +1,12 @@
 import { describe, expect, it } from 'vitest';
+import { Review } from '../src/domain/entities/Review.js';
+import { ValidationError } from '../src/domain/errors/DomainError.js';
+import { Rating } from '../src/domain/value-objects/Rating.js';
 import { HeuristicReviewAnalyzer } from '../src/infrastructure/ai/HeuristicReviewAnalyzer.js';
 import { classificationPrompt } from '../src/infrastructure/ai/prompts.js';
+import { CsvReviewExporter } from '../src/infrastructure/csv/CsvReviewExporter.js';
 import { CsvReviewParser, PastedTextParser } from '../src/infrastructure/csv/ReviewTextParsers.js';
 import { JwtTokenService } from '../src/infrastructure/security/JwtTokenService.js';
-import { ValidationError } from '../src/domain/errors/DomainError.js';
-import { Review } from '../src/domain/entities/Review.js';
-import { Rating } from '../src/domain/value-objects/Rating.js';
-import { CsvReviewExporter } from '../src/infrastructure/csv/CsvReviewExporter.js';
 
 describe('CsvReviewParser', () => {
   const parser = new CsvReviewParser();
@@ -36,7 +36,9 @@ describe('HeuristicReviewAnalyzer', () => {
     expect(HeuristicReviewAnalyzer.lexicalScore(HeuristicReviewAnalyzer.normalize('Excelente atención, muy amables'))).toBeGreaterThan(0.3);
     expect(HeuristicReviewAnalyzer.lexicalScore(HeuristicReviewAnalyzer.normalize('Pésimo, se demoraron muchísimo'))).toBeLessThan(-0.3);
     // La negación de otra cláusula no debe invertir "pésimo".
-    expect(HeuristicReviewAnalyzer.lexicalScore(HeuristicReviewAnalyzer.normalize('No había datáfono y no tenía efectivo, pésimo.'))).toBeLessThan(0);
+    expect(
+      HeuristicReviewAnalyzer.lexicalScore(HeuristicReviewAnalyzer.normalize('No había datáfono y no tenía efectivo, pésimo.')),
+    ).toBeLessThan(0);
   });
 });
 
@@ -63,7 +65,13 @@ describe('CsvReviewExporter (CSV injection)', () => {
   });
 
   it('genera BOM, cabecera y una fila por reseña', () => {
-    const review = Review.create({ businessId: 'b', content: '=1+1 malísimo', rating: Rating.create(1), source: 'csv', authoredAt: new Date('2026-09-01T12:00:00Z') });
+    const review = Review.create({
+      businessId: 'b',
+      content: '=1+1 malísimo',
+      rating: Rating.create(1),
+      source: 'csv',
+      authoredAt: new Date('2026-09-01T12:00:00Z'),
+    });
     const csv = new CsvReviewExporter().serialize([{ review, sentiment: 'negative', sentimentScore: -0.8, topics: ['Precio', 'Sabor'] }]);
     const [header, row] = csv.replace('﻿', '').split('\r\n');
     expect(csv.startsWith('﻿')).toBe(true);

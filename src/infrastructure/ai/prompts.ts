@@ -71,10 +71,7 @@ ${reviewsBlock(sample.map((review, i) => ({ alias: `m${i + 1}`, review })))}
 </reviews>`;
 }
 
-export function classificationPrompt(
-  batch: readonly { alias: string; review: ReviewText }[],
-  topics: readonly TopicDefinition[],
-): string {
+export function classificationPrompt(batch: readonly { alias: string; review: ReviewText }[], topics: readonly TopicDefinition[]): string {
   const taxonomy = topics.map((t) => `- ${t.key}: ${escapeXml(t.name)} — ${escapeXml(t.description)}`).join('\n');
   return `Clasifica CADA una de las ${batch.length} reseñas.
 
@@ -98,9 +95,11 @@ export function recommendationPrompt(stats: InsightStats, ctx: BusinessContext):
   const topicLines = stats.topics
     .map((t) => {
       const quotes = t.sampleQuotes.map((q) => `    · "${escapeXml(q)}"`).join('\n');
-      return `- key=${t.key} | ${t.name}: mencionado en ${t.mentions} reseñas (${t.share}%). ` +
+      return (
+        `- key=${t.key} | ${t.name}: mencionado en ${t.mentions} reseñas (${t.share}%). ` +
         `Positivas ${t.positive}, neutras ${t.neutral}, negativas ${t.negative}. ` +
-        `Quejas sobre el total: ${t.complaintShare}%.\n  Citas:\n${quotes}`;
+        `Quejas sobre el total: ${t.complaintShare}%.\n  Citas:\n${quotes}`
+      );
     })
     .join('\n');
 

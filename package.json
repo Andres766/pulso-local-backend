@@ -14,7 +14,10 @@
     "migrate": "tsx src/infrastructure/db/migrate.ts",
     "seed": "tsx src/infrastructure/db/seed.ts",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run"
+    "test": "vitest run",
+    "lint": "biome lint",
+    "format": "biome format --write",
+    "check": "biome check"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.129.0",
@@ -35,6 +38,7 @@
     "zod": "^4.6.5"
   },
   "devDependencies": {
+    "@biomejs/biome": "^2.6.4",
     "@types/cookie-parser": "^1.4.10",
     "@types/cors": "^2.8.19",
     "@types/express": "^5.0.6",

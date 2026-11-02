@@ -1,13 +1,8 @@
 import type { Review } from '../../../domain/entities/Review.js';
 import { AnalyzerError, NotFoundError } from '../../../domain/errors/DomainError.js';
-import type {
-  BusinessContext,
-  ReviewClassification,
-  ReviewText,
-  TopicDefinition,
-} from '../../../domain/model/Insight.js';
-import type { ReviewAnalyzer } from '../../../domain/ports/ReviewAnalyzer.js';
+import type { BusinessContext, ReviewClassification, ReviewText, TopicDefinition } from '../../../domain/model/Insight.js';
 import type { AnalysisRepository, BusinessRepository, ReviewRepository } from '../../../domain/ports/Repositories.js';
+import type { ReviewAnalyzer } from '../../../domain/ports/ReviewAnalyzer.js';
 import type { Logger } from '../../../domain/ports/Services.js';
 import type { InsightAggregator } from '../../../domain/services/InsightAggregator.js';
 
@@ -49,9 +44,7 @@ export class ExecuteAnalysis {
       const reviews = (await this.reviews.listForAnalysis(business.id, this.maxReviews)).map(ExecuteAnalysis.toText);
 
       const previousTopics = await this.previousTaxonomy(business.id);
-      const topics = this.sanitizeTopics(
-        await this.analyzer.discoverTopics(ExecuteAnalysis.sample(reviews), context, previousTopics),
-      );
+      const topics = this.sanitizeTopics(await this.analyzer.discoverTopics(ExecuteAnalysis.sample(reviews), context, previousTopics));
       const classifications = await this.classifyAll(reviews, topics);
       const stats = this.aggregator.aggregate(reviews, topics, classifications);
       const drafts = await this.analyzer.recommend(stats, context);
@@ -64,13 +57,9 @@ export class ExecuteAnalysis {
         recommendations,
         sentiment: stats.sentiment,
       });
-      this.logger.info(
-        { runId, reviews: reviews.length, topics: stats.topics.length, ms: Date.now() - startedAt },
-        'Análisis completado',
-      );
+      this.logger.info({ runId, reviews: reviews.length, topics: stats.topics.length, ms: Date.now() - startedAt }, 'Análisis completado');
     } catch (err) {
-      const message =
-        err instanceof AnalyzerError ? err.message : 'Ocurrió un error inesperado durante el análisis. Intenta de nuevo.';
+      const message = err instanceof AnalyzerError ? err.message : 'Ocurrió un error inesperado durante el análisis. Intenta de nuevo.';
       this.logger.error({ runId, err }, 'Análisis fallido');
       run.fail(message);
       await this.analyses.save(run);
@@ -118,7 +107,12 @@ export class ExecuteAnalysis {
     const seen = new Set<string>();
     const clean: TopicDefinition[] = [];
     for (const t of topics) {
-      const key = t.key.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '');
+      const key = t.key
+        .toLowerCase()
+        .normalize('NFD')
+        .replace(/[̀-ͯ]/g, '')
+        .replace(/[^a-z0-9]+/g, '_')
+        .replace(/^_|_$/g, '');
       if (!key || seen.has(key)) continue;
       seen.add(key);
       clean.push({ key, name: t.name.trim().slice(0, 60), description: t.description.trim().slice(0, 200) });

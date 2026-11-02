@@ -25,16 +25,80 @@ export class HeuristicReviewAnalyzer implements ReviewAnalyzer {
   readonly batchSize = 200;
 
   private static readonly POSITIVE = [
-    'excelente', 'delicios', 'rico', 'rica', 'buen', 'buena', 'bueno', 'amable', 'recomiend', 'encant',
-    'perfect', 'rapid', 'limpi', 'agradable', 'acogedor', 'feliz', 'genial', 'mejor', 'fresc', 'calid',
-    'atent', 'sabros', 'vale la pena', 'economic', 'justo', 'gust', 'maravill', 'increible', 'top', 'super bien',
+    'excelente',
+    'delicios',
+    'rico',
+    'rica',
+    'buen',
+    'buena',
+    'bueno',
+    'amable',
+    'recomiend',
+    'encant',
+    'perfect',
+    'rapid',
+    'limpi',
+    'agradable',
+    'acogedor',
+    'feliz',
+    'genial',
+    'mejor',
+    'fresc',
+    'calid',
+    'atent',
+    'sabros',
+    'vale la pena',
+    'economic',
+    'justo',
+    'gust',
+    'maravill',
+    'increible',
+    'top',
+    'super bien',
   ];
 
   private static readonly NEGATIVE = [
-    'mal', 'mala', 'malo', 'pesim', 'horrible', 'terrible', 'demor', 'lent', 'tarde', 'sucio', 'suci',
-    'caro', 'cara', 'costos', 'frio', 'fria', 'grosero', 'grosera', 'groser', 'nunca', 'queja', 'decepcion',
-    'desagrad', 'crudo', 'quemad', 'incomod', 'ruido', 'olvid', 'equivoc', 'error', 'espere', 'esperar',
-    'insipid', 'feo', 'fea', 'peor', 'estafa', 'cobraron de mas', 'no volvere', 'no vuelvo', 'desorden',
+    'mal',
+    'mala',
+    'malo',
+    'pesim',
+    'horrible',
+    'terrible',
+    'demor',
+    'lent',
+    'tarde',
+    'sucio',
+    'suci',
+    'caro',
+    'cara',
+    'costos',
+    'frio',
+    'fria',
+    'grosero',
+    'grosera',
+    'groser',
+    'nunca',
+    'queja',
+    'decepcion',
+    'desagrad',
+    'crudo',
+    'quemad',
+    'incomod',
+    'ruido',
+    'olvid',
+    'equivoc',
+    'error',
+    'espere',
+    'esperar',
+    'insipid',
+    'feo',
+    'fea',
+    'peor',
+    'estafa',
+    'cobraron de mas',
+    'no volvere',
+    'no vuelvo',
+    'desorden',
   ];
 
   private static readonly NEGATIONS = new Set(['no', 'nunca', 'ni', 'nada', 'tampoco', 'sin', 'jamas']);
@@ -42,42 +106,111 @@ export class HeuristicReviewAnalyzer implements ReviewAnalyzer {
 
   private static readonly CATALOG: CatalogTopic[] = [
     {
-      key: 'atencion', name: 'Atención del personal', description: 'Trato, amabilidad y disposición de quien atiende.',
-      stems: ['atencion', 'atendi', 'amable', 'mesero', 'mesera', 'personal', 'trato', 'grosero', 'grosera', 'cajer', 'vendedor', 'atent', 'servicio al cliente'],
-      advice: { title: 'Refuerza el protocolo de atención', action: 'Haz una reunión corta con el equipo para acordar un saludo, tiempos de respuesta y cómo manejar reclamos.' },
+      key: 'atencion',
+      name: 'Atención del personal',
+      description: 'Trato, amabilidad y disposición de quien atiende.',
+      stems: [
+        'atencion',
+        'atendi',
+        'amable',
+        'mesero',
+        'mesera',
+        'personal',
+        'trato',
+        'grosero',
+        'grosera',
+        'cajer',
+        'vendedor',
+        'atent',
+        'servicio al cliente',
+      ],
+      advice: {
+        title: 'Refuerza el protocolo de atención',
+        action: 'Haz una reunión corta con el equipo para acordar un saludo, tiempos de respuesta y cómo manejar reclamos.',
+      },
     },
     {
-      key: 'tiempo_espera', name: 'Tiempo de espera', description: 'Demoras para ser atendido o recibir el pedido.',
+      key: 'tiempo_espera',
+      name: 'Tiempo de espera',
+      description: 'Demoras para ser atendido o recibir el pedido.',
       stems: ['demor', 'tarde', 'espera', 'esper', 'lent', 'rapid', 'minutos', 'una hora', 'tardaron', 'tardo'],
-      advice: { title: 'Reduce la espera en horas pico', action: 'Mide cuánto tarda cada pedido en las horas de más movimiento y refuerza el personal o prepara con anticipación lo más pedido.' },
+      advice: {
+        title: 'Reduce la espera en horas pico',
+        action:
+          'Mide cuánto tarda cada pedido en las horas de más movimiento y refuerza el personal o prepara con anticipación lo más pedido.',
+      },
     },
     {
-      key: 'precio', name: 'Precio y valor', description: 'Percepción de precios y relación calidad-precio.',
+      key: 'precio',
+      name: 'Precio y valor',
+      description: 'Percepción de precios y relación calidad-precio.',
       stems: ['precio', 'caro', 'cara', 'costos', 'barat', 'economic', 'cobr', 'vale la pena', 'plata', 'cuenta'],
-      advice: { title: 'Comunica mejor el valor de tus precios', action: 'Revisa las porciones frente a la competencia y crea un combo o promoción de entrada para quienes sienten que es caro.' },
+      advice: {
+        title: 'Comunica mejor el valor de tus precios',
+        action: 'Revisa las porciones frente a la competencia y crea un combo o promoción de entrada para quienes sienten que es caro.',
+      },
     },
     {
-      key: 'calidad_producto', name: 'Calidad del producto', description: 'Sabor, frescura y estado de lo que se vende.',
-      stems: ['sabor', 'delicios', 'rico', 'rica', 'frio', 'fria', 'fresc', 'calidad', 'comida', 'cafe', 'producto', 'quemad', 'crudo', 'sabros', 'insipid', 'porcion'],
-      advice: { title: 'Estandariza la preparación', action: 'Define recetas y temperaturas de servicio por escrito y revisa los platos antes de que salgan.' },
+      key: 'calidad_producto',
+      name: 'Calidad del producto',
+      description: 'Sabor, frescura y estado de lo que se vende.',
+      stems: [
+        'sabor',
+        'delicios',
+        'rico',
+        'rica',
+        'frio',
+        'fria',
+        'fresc',
+        'calidad',
+        'comida',
+        'cafe',
+        'producto',
+        'quemad',
+        'crudo',
+        'sabros',
+        'insipid',
+        'porcion',
+      ],
+      advice: {
+        title: 'Estandariza la preparación',
+        action: 'Define recetas y temperaturas de servicio por escrito y revisa los platos antes de que salgan.',
+      },
     },
     {
-      key: 'limpieza', name: 'Limpieza e higiene', description: 'Aseo del local, baños y manipulación de alimentos.',
+      key: 'limpieza',
+      name: 'Limpieza e higiene',
+      description: 'Aseo del local, baños y manipulación de alimentos.',
       stems: ['limpi', 'sucio', 'suci', 'bano', 'higien', 'mosca', 'olor', 'aseo', 'mugre'],
-      advice: { title: 'Implementa una rutina de aseo visible', action: 'Crea una lista de chequeo de limpieza por turnos (baños y mesas) y déjala a la vista de los clientes.' },
+      advice: {
+        title: 'Implementa una rutina de aseo visible',
+        action: 'Crea una lista de chequeo de limpieza por turnos (baños y mesas) y déjala a la vista de los clientes.',
+      },
     },
     {
-      key: 'ambiente', name: 'Ambiente del local', description: 'Comodidad, ruido, música y espacio.',
+      key: 'ambiente',
+      name: 'Ambiente del local',
+      description: 'Comodidad, ruido, música y espacio.',
       stems: ['ambiente', 'musica', 'ruido', 'acogedor', 'decoracion', 'espacio', 'incomod', 'lugar', 'sillas', 'mesas', 'bonito'],
-      advice: { title: 'Mejora la comodidad del espacio', action: 'Ajusta el volumen de la música y revisa sillas y distribución de mesas para las visitas largas.' },
+      advice: {
+        title: 'Mejora la comodidad del espacio',
+        action: 'Ajusta el volumen de la música y revisa sillas y distribución de mesas para las visitas largas.',
+      },
     },
     {
-      key: 'domicilios', name: 'Domicilios', description: 'Pedidos a domicilio y por aplicaciones.',
+      key: 'domicilios',
+      name: 'Domicilios',
+      description: 'Pedidos a domicilio y por aplicaciones.',
       stems: ['domicilio', 'delivery', 'pedido', 'rappi', 'llego', 'app', 'whatsapp'],
-      advice: { title: 'Controla la calidad de los domicilios', action: 'Usa empaques que conserven la temperatura y confirma cada pedido por WhatsApp antes de despacharlo.' },
+      advice: {
+        title: 'Controla la calidad de los domicilios',
+        action: 'Usa empaques que conserven la temperatura y confirma cada pedido por WhatsApp antes de despacharlo.',
+      },
     },
     {
-      key: 'medios_pago', name: 'Medios de pago', description: 'Formas de pago disponibles y facturación.',
+      key: 'medios_pago',
+      name: 'Medios de pago',
+      description: 'Formas de pago disponibles y facturación.',
       stems: ['tarjeta', 'datafono', 'nequi', 'daviplata', 'efectivo', 'transferencia', 'factura', 'pago'],
       advice: { title: 'Amplía los medios de pago', action: 'Habilita pagos por Nequi/Daviplata o datáfono y anúncialo en caja y redes.' },
     },
@@ -108,7 +241,8 @@ export class HeuristicReviewAnalyzer implements ReviewAnalyzer {
         const advice = catalog.get(t.key)?.advice;
         return {
           title: advice?.title ?? `Atiende las quejas sobre ${t.name.toLowerCase()}`,
-          detail: `El ${t.complaintShare}% de tus reseñas se queja de ${t.name.toLowerCase()} (${t.negative} de ${stats.totalReviews}). ${advice?.action ?? ''}`.trim(),
+          detail:
+            `El ${t.complaintShare}% de tus reseñas se queja de ${t.name.toLowerCase()} (${t.negative} de ${stats.totalReviews}). ${advice?.action ?? ''}`.trim(),
           priority: t.complaintShare >= 20 ? 'alta' : t.complaintShare >= 10 ? 'media' : 'baja',
           topicKey: t.key,
         };
@@ -132,15 +266,16 @@ export class HeuristicReviewAnalyzer implements ReviewAnalyzer {
    * pertenece a otra cláusula y no invierte "pésimo".
    */
   static lexicalScore(text: string): number {
-    const tokens = text
-      .split(/[.,;:!?¡¿()\n]+/)
-      .flatMap((clause) => [...clause.split(/[^a-zñ]+/).filter(Boolean), '|']);
+    const tokens = text.split(/[.,;:!?¡¿()\n]+/).flatMap((clause) => [...clause.split(/[^a-zñ]+/).filter(Boolean), '|']);
     let score = 0;
     let hits = 0;
 
     const phrases = (list: string[], sign: number) => {
       for (const p of list.filter((w) => w.includes(' '))) {
-        if (text.includes(p)) { score += sign; hits++; }
+        if (text.includes(p)) {
+          score += sign;
+          hits++;
+        }
       }
     };
     phrases(HeuristicReviewAnalyzer.POSITIVE, 1);

@@ -1,7 +1,7 @@
 import { AnalysisRun } from '../../../domain/entities/AnalysisRun.js';
 import { ConflictError } from '../../../domain/errors/DomainError.js';
-import type { ReviewAnalyzer } from '../../../domain/ports/ReviewAnalyzer.js';
 import type { AnalysisRepository, ReviewRepository } from '../../../domain/ports/Repositories.js';
+import type { ReviewAnalyzer } from '../../../domain/ports/ReviewAnalyzer.js';
 import type { TaskScheduler } from '../../../domain/ports/Services.js';
 import type { BusinessAccess } from '../businesses/BusinessAccess.js';
 import type { ExecuteAnalysis } from './ExecuteAnalysis.js';

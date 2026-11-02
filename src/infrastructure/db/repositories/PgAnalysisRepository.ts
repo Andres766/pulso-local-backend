@@ -61,10 +61,9 @@ export class PgAnalysisRepository implements AnalysisRepository {
   }
 
   async findLatest(businessId: string): Promise<AnalysisRun | null> {
-    const { rows } = await this.db.query<RunRow>(
-      'SELECT * FROM analysis_runs WHERE business_id = $1 ORDER BY created_at DESC LIMIT 1',
-      [businessId],
-    );
+    const { rows } = await this.db.query<RunRow>('SELECT * FROM analysis_runs WHERE business_id = $1 ORDER BY created_at DESC LIMIT 1', [
+      businessId,
+    ]);
     return rows[0] ? PgAnalysisRepository.toDomain(rows[0]) : null;
   }
 
@@ -87,10 +86,10 @@ export class PgAnalysisRepository implements AnalysisRepository {
   }
 
   async listByBusiness(businessId: string, limit: number): Promise<AnalysisRun[]> {
-    const { rows } = await this.db.query<RunRow>(
-      'SELECT * FROM analysis_runs WHERE business_id = $1 ORDER BY created_at DESC LIMIT $2',
-      [businessId, limit],
-    );
+    const { rows } = await this.db.query<RunRow>('SELECT * FROM analysis_runs WHERE business_id = $1 ORDER BY created_at DESC LIMIT $2', [
+      businessId,
+      limit,
+    ]);
     return rows.map(PgAnalysisRepository.toDomain);
   }
 
@@ -118,7 +117,19 @@ export class PgAnalysisRepository implements AnalysisRepository {
           `INSERT INTO topics (run_id, key, name, description, mentions, share, positive_count, neutral_count,
                                negative_count, complaint_share, sample_quotes)
            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) RETURNING id`,
-          [run.id, t.key, t.name, t.description, t.mentions, t.share, t.positive, t.neutral, t.negative, t.complaintShare, JSON.stringify(t.sampleQuotes)],
+          [
+            run.id,
+            t.key,
+            t.name,
+            t.description,
+            t.mentions,
+            t.share,
+            t.positive,
+            t.neutral,
+            t.negative,
+            t.complaintShare,
+            JSON.stringify(t.sampleQuotes),
+          ],
         );
         topicIds.set(t.key, rows[0]!.id);
       }
@@ -142,10 +153,7 @@ export class PgAnalysisRepository implements AnalysisRepository {
   }
 
   async getReport(runId: string): Promise<InsightReport | null> {
-    const { rows: runRows } = await this.db.query<RunRow>(
-      `SELECT * FROM analysis_runs WHERE id = $1 AND status = 'completed'`,
-      [runId],
-    );
+    const { rows: runRows } = await this.db.query<RunRow>(`SELECT * FROM analysis_runs WHERE id = $1 AND status = 'completed'`, [runId]);
     const run = runRows[0];
     if (!run) return null;
 

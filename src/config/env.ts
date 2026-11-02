@@ -5,9 +5,7 @@ import { z } from 'zod';
  * Configuración validada al arrancar (fail-fast): si falta un secreto o un valor
  * es inválido, el proceso no inicia en lugar de fallar más tarde en producción.
  */
-const booleanFromString = z
-  .enum(['true', 'false'])
-  .transform((v) => v === 'true');
+const booleanFromString = z.enum(['true', 'false']).transform((v) => v === 'true');
 
 const schema = z.object({
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),

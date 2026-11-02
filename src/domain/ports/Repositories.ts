@@ -2,9 +2,9 @@ import type { AnalysisRun } from '../entities/AnalysisRun.js';
 import type { Business } from '../entities/Business.js';
 import type { Review } from '../entities/Review.js';
 import type { User } from '../entities/User.js';
+import type { InsightReport, Recommendation, ReviewClassification, TopicStat } from '../model/Insight.js';
 import type { Email } from '../value-objects/Email.js';
 import type { SentimentLabel } from '../value-objects/Sentiment.js';
-import type { InsightReport, Recommendation, ReviewClassification, TopicStat } from '../model/Insight.js';
 
 /**
  * Puertos de persistencia (patrón Repository). El dominio define QUÉ necesita;

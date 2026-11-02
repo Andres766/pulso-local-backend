@@ -1,7 +1,7 @@
 import { pino } from 'pino';
 import request from 'supertest';
 import { beforeAll, describe, expect, it } from 'vitest';
-import { createApp, type AppDependencies } from '../../src/app.js';
+import { type AppDependencies, createApp } from '../../src/app.js';
 import { GetAnalysis, GetDashboard } from '../../src/application/use-cases/analysis/AnalysisQueries.js';
 import { ExecuteAnalysis } from '../../src/application/use-cases/analysis/ExecuteAnalysis.js';
 import { RequestAnalysis } from '../../src/application/use-cases/analysis/RequestAnalysis.js';
@@ -9,7 +9,12 @@ import { AuthenticateUser } from '../../src/application/use-cases/auth/Authentic
 import { GetCurrentUser } from '../../src/application/use-cases/auth/GetCurrentUser.js';
 import { RegisterUser } from '../../src/application/use-cases/auth/RegisterUser.js';
 import { BusinessAccess } from '../../src/application/use-cases/businesses/BusinessAccess.js';
-import { CreateBusiness, DeleteBusiness, GetBusiness, ListBusinesses } from '../../src/application/use-cases/businesses/BusinessUseCases.js';
+import {
+  CreateBusiness,
+  DeleteBusiness,
+  GetBusiness,
+  ListBusinesses,
+} from '../../src/application/use-cases/businesses/BusinessUseCases.js';
 import { ClearReviews, ExportReviews, ImportReviews, ListReviews } from '../../src/application/use-cases/reviews/ReviewUseCases.js';
 import { InsightAggregator } from '../../src/domain/services/InsightAggregator.js';
 import { InsightComparator } from '../../src/domain/services/InsightComparator.js';
@@ -21,7 +26,15 @@ import { AnalysisController } from '../../src/interfaces/http/controllers/Analys
 import { AuthController } from '../../src/interfaces/http/controllers/AuthController.js';
 import { BusinessController } from '../../src/interfaces/http/controllers/BusinessController.js';
 import { ReviewController } from '../../src/interfaces/http/controllers/ReviewController.js';
-import { FakeHasher, ImmediateScheduler, InMemoryAnalyses, InMemoryBusinesses, InMemoryReviews, InMemoryUsers, silentLogger } from '../fakes.js';
+import {
+  FakeHasher,
+  ImmediateScheduler,
+  InMemoryAnalyses,
+  InMemoryBusinesses,
+  InMemoryReviews,
+  InMemoryUsers,
+  silentLogger,
+} from '../fakes.js';
 
 /**
  * Pruebas de integración de la capa HTTP: la app Express real (middlewares de seguridad,
@@ -92,7 +105,11 @@ describe('API HTTP', () => {
   beforeAll(async () => {
     owner = await register('dueno@cafe.co', 'Galeras2026x');
     intruder = await register('otro@mail.co', 'Montana98765z');
-    const res = await request(app).post('/api/businesses').set(CSRF).set('Cookie', owner).send({ name: 'Café Galeras', category: 'cafeteria' });
+    const res = await request(app)
+      .post('/api/businesses')
+      .set(CSRF)
+      .set('Cookie', owner)
+      .send({ name: 'Café Galeras', category: 'cafeteria' });
     businessId = res.body.id;
   });
 
@@ -145,7 +162,11 @@ describe('API HTTP', () => {
     });
 
     it('rechaza campos no declarados (mass assignment) e IDs inválidos', async () => {
-      const res = await request(app).post('/api/businesses').set(CSRF).set('Cookie', owner).send({ name: 'Tienda', category: 'tienda', ownerId: 'hack' });
+      const res = await request(app)
+        .post('/api/businesses')
+        .set(CSRF)
+        .set('Cookie', owner)
+        .send({ name: 'Tienda', category: 'tienda', ownerId: 'hack' });
       expect(res.status).toBe(400);
       expect((await request(app).get("/api/businesses/1' OR 1=1--").set('Cookie', owner)).status).toBe(400);
     });

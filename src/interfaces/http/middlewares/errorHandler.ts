@@ -21,7 +21,9 @@ export class HttpError extends Error {
   }
 }
 
-const STATUS_BY_DOMAIN_ERROR = new Map<Function, number>([
+type DomainErrorClass = abstract new (...args: never[]) => DomainError;
+
+const STATUS_BY_DOMAIN_ERROR = new Map<DomainErrorClass, number>([
   [ValidationError, 400],
   [AuthenticationError, 401],
   [NotFoundError, 404],
@@ -51,7 +53,9 @@ export const errorHandler: ErrorRequestHandler = (err, req, res, _next) => {
   }
 
   if (err instanceof DomainError) {
-    res.status(STATUS_BY_DOMAIN_ERROR.get(err.constructor) ?? 400).json({ error: { code: err.code, message: err.message } });
+    res
+      .status(STATUS_BY_DOMAIN_ERROR.get(err.constructor as DomainErrorClass) ?? 400)
+      .json({ error: { code: err.code, message: err.message } });
     return;
   }
 

@@ -1,10 +1,5 @@
 import type { Request, Response } from 'express';
-import type {
-  ClearReviews,
-  ExportReviews,
-  ImportReviews,
-  ListReviews,
-} from '../../../application/use-cases/reviews/ReviewUseCases.js';
+import type { ClearReviews, ExportReviews, ImportReviews, ListReviews } from '../../../application/use-cases/reviews/ReviewUseCases.js';
 import { ValidationError } from '../../../domain/errors/DomainError.js';
 import type { CsvReviewExporter } from '../../../infrastructure/csv/CsvReviewExporter.js';
 import type { ReviewSourceParser } from '../../../infrastructure/csv/ReviewTextParsers.js';
@@ -59,10 +54,7 @@ export class ReviewController {
     const { id } = uuidParam.parse(req.params);
     const { businessName, items } = await this.exportReviews.execute(id, req.userId!);
     const filename = `resenas-${ReviewController.slug(businessName)}-${new Date().toISOString().slice(0, 10)}.csv`;
-    res
-      .type('text/csv; charset=utf-8')
-      .attachment(filename)
-      .send(this.exporter.serialize(items));
+    res.type('text/csv; charset=utf-8').attachment(filename).send(this.exporter.serialize(items));
   };
 
   clear = async (req: Request, res: Response) => {

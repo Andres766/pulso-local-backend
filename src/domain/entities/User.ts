@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { ValidationError } from '../errors/DomainError.js';
-import { Email } from '../value-objects/Email.js';
+import type { Email } from '../value-objects/Email.js';
 
 export interface UserProps {
   id: string;
@@ -33,11 +33,21 @@ export class User {
     return new User(props);
   }
 
-  get id(): string { return this.props.id; }
-  get email(): Email { return this.props.email; }
-  get name(): string { return this.props.name; }
-  get passwordHash(): string { return this.props.passwordHash; }
-  get createdAt(): Date { return this.props.createdAt; }
+  get id(): string {
+    return this.props.id;
+  }
+  get email(): Email {
+    return this.props.email;
+  }
+  get name(): string {
+    return this.props.name;
+  }
+  get passwordHash(): string {
+    return this.props.passwordHash;
+  }
+  get createdAt(): Date {
+    return this.props.createdAt;
+  }
 
   /** Proyección segura para enviar al cliente: nunca incluye el hash. */
   toPublic(): { id: string; email: string; name: string } {
