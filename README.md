@@ -11,7 +11,8 @@ respaldadas con cifras reales.
 - Contrato de la API: `GET /api/openapi.json` (OpenAPI 3.1)
 - En línea: https://pulso-local-frontend.vercel.app · API: https://pulso-local-backend.onrender.com/api/health
 
-**Usuario demo:** `demo@pulsolocal.co` / `Galeras2026Pasto` (Café Galeras y Restaurante El Fogón)
+**Usuario demo:** `demo@pulsolocal.co` / `Galeras2026Pasto` (cinco negocios de Pasto: Café Galeras, Restaurante El Fogón, Peluquería Lunaria, Artesanías
+Mopa-Mopa y Taller Mecánico Chapal, con reseñas de junio a noviembre de 2026)
 
 ## Requisitos
 - Node.js 22 o superior
@@ -30,7 +31,7 @@ docker compose up -d db
 # 3. API (http://localhost:4000): aplica las migraciones al arrancar
 cd backend
 npm install
-npm run seed                    # usuario demo + dos negocios con reseñas de ejemplo
+npm run seed                    # usuario demo + cinco negocios con reseñas de ejemplo
 npm run dev
 ```
 
@@ -53,7 +54,7 @@ La clave de API va **solo** en `.env` o en las variables de entorno del servidor
 | `npm run typecheck` | chequeo de tipos |
 | `npm run check` | lint y formato con Biome |
 | `npm run eval` | exactitud del sentimiento: léxico local vs. Gemini (`-- --guardar` escribe `docs/EVALUACION.md`) |
-| `npm run seed` | datos de demostración (idempotente; no corre en producción) |
+| `npm run seed` | datos de demostración (idempotente; no corre en producción). Con `-- --hasta 30/09/2026` carga solo hasta esa fecha: así se arma un historial de dos análisis para ver la evolución |
 | `npm run build` / `npm start` | build y ejecución de producción |
 
 Pruebas contra PostgreSQL real (la base debe terminar en `_test`, porque se borra su esquema):
