@@ -272,7 +272,7 @@ la reintenta en el servidor con otro modelo.
 
 ## 9. API REST
 
-El contrato completo (23 operaciones, con parámetros, cuerpos y errores) está en **`GET /api/openapi.json`**
+El contrato completo (24 operaciones, con parámetros, cuerpos y errores) está en **`GET /api/openapi.json`**
 (OpenAPI 3.1; se abre en https://editor.swagger.io). Una prueba recorre las rutas registradas en Express y falla
 si alguna no está documentada.
 
@@ -282,7 +282,7 @@ si alguna no está documentada.
 | Autenticación | `POST /auth/register` · `POST /auth/login` · `POST /auth/logout` · `GET /auth/me` · `POST /auth/password` · `DELETE /auth/account` |
 | Negocios | `GET`/`POST /businesses` · `GET`/`PATCH`/`DELETE /businesses/:id` |
 | Reseñas | `GET /businesses/:id/reviews` (filtros, orden, paginación) · `POST …/reviews/csv` · `POST …/reviews/text` · `GET …/reviews/export` · `DELETE …/reviews` · `DELETE …/reviews/:reviewId` |
-| Análisis | `POST /businesses/:id/analyses` (202) · `GET /analyses/:id` · `GET /businesses/:id/dashboard` · `GET /businesses/:id/trend` |
+| Análisis | `POST /businesses/:id/analyses` (202) · `GET /analyses/:id` · `GET /businesses/:id/dashboard` · `GET /businesses/:id/trend` · `GET /businesses/overview` (pulso de todos los negocios) |
 
 ---
 

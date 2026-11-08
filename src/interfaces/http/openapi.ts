@@ -209,6 +209,14 @@ export const openApiDocument = {
       },
     },
 
+    '/businesses/overview': {
+      get: {
+        tags: ['Análisis'],
+        summary: 'Pulso de todos mis negocios: reseñas, sentimiento y principal queja del último análisis',
+        security: authed,
+        responses: { 200: ok('Resumen por negocio'), ...errors(401) },
+      },
+    },
     '/businesses/{id}/dashboard': {
       get: {
         tags: ['Análisis'],

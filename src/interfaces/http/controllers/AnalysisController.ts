@@ -1,5 +1,10 @@
 import type { Request, Response } from 'express';
-import type { GetAnalysis, GetDashboard, GetSentimentTrend } from '../../../application/use-cases/analysis/AnalysisQueries.js';
+import type {
+  GetAnalysis,
+  GetBusinessesOverview,
+  GetDashboard,
+  GetSentimentTrend,
+} from '../../../application/use-cases/analysis/AnalysisQueries.js';
 import type { RequestAnalysis } from '../../../application/use-cases/analysis/RequestAnalysis.js';
 import { trendQuery, uuidParam } from '../schemas.js';
 
@@ -9,6 +14,7 @@ export class AnalysisController {
     private readonly getAnalysis: GetAnalysis,
     private readonly getDashboard: GetDashboard,
     private readonly getSentimentTrend: GetSentimentTrend,
+    private readonly getOverview: GetBusinessesOverview,
   ) {}
 
   /** 202 Accepted: el análisis corre en segundo plano; el cliente consulta GET /analyses/:id. */
@@ -35,6 +41,22 @@ export class AnalysisController {
       history: d.history.map((r) => r.toJSON()),
       previousRun: d.previousRun?.toJSON() ?? null,
       comparison: d.comparison,
+    });
+  };
+
+  overview = async (req: Request, res: Response) => {
+    const items = await this.getOverview.execute(req.userId!);
+    res.json({
+      items: items.map((p) => ({
+        business: p.business.toJSON(),
+        reviewCount: p.reviewCount,
+        latestStatus: p.latestStatus,
+        analyzedAt: p.analyzedAt?.toISOString() ?? null,
+        analyzedReviews: p.analyzedReviews,
+        sentiment: p.sentiment,
+        topComplaint: p.topComplaint,
+        positiveShareDelta: p.positiveShareDelta,
+      })),
     });
   };
 

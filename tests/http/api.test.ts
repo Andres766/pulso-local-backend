@@ -2,7 +2,12 @@ import { pino } from 'pino';
 import request from 'supertest';
 import { beforeAll, describe, expect, it } from 'vitest';
 import { type AppDependencies, createApp } from '../../src/app.js';
-import { GetAnalysis, GetDashboard, GetSentimentTrend } from '../../src/application/use-cases/analysis/AnalysisQueries.js';
+import {
+  GetAnalysis,
+  GetBusinessesOverview,
+  GetDashboard,
+  GetSentimentTrend,
+} from '../../src/application/use-cases/analysis/AnalysisQueries.js';
 import { AnalysisWorker } from '../../src/application/use-cases/analysis/AnalysisWorker.js';
 import { ExecuteAnalysis } from '../../src/application/use-cases/analysis/ExecuteAnalysis.js';
 import { RequestAnalysis } from '../../src/application/use-cases/analysis/RequestAnalysis.js';
@@ -97,6 +102,7 @@ function buildDeps(): AppDependencies {
       new GetAnalysis(access, analyses),
       new GetDashboard(access, reviews, analyses, new InsightComparator()),
       new GetSentimentTrend(access, analyses, new SentimentTrend()),
+      new GetBusinessesOverview(businesses, reviews, analyses, new InsightComparator()),
     ),
   };
   return deps;
@@ -352,6 +358,14 @@ describe('API HTTP', () => {
       expect(trend.body.points.reduce((n: number, p: { total: number }) => n + p.total, 0)).toBe(3);
       expect((await request(app).get(`/api/businesses/${businessId}/trend`).query({ months: 99 }).set('Cookie', owner)).status).toBe(400);
       expect((await request(app).get(`/api/businesses/${businessId}/trend`).set('Cookie', intruder)).status).toBe(404);
+
+      const overview = await request(app).get('/api/businesses/overview').set('Cookie', owner);
+      expect(overview.status).toBe(200);
+      const pulse = overview.body.items.find((p: { business: { id: string } }) => p.business.id === businessId);
+      expect(pulse).toMatchObject({ reviewCount: 3, analyzedReviews: 3, latestStatus: 'completed', positiveShareDelta: null });
+      expect(pulse.sentiment.positive + pulse.sentiment.neutral + pulse.sentiment.negative).toBe(3);
+      const othersView = await request(app).get('/api/businesses/overview').set('Cookie', intruder);
+      expect(othersView.body.items.some((p: { business: { id: string } }) => p.business.id === businessId)).toBe(false);
 
       const exported = await request(app).get(`/api/businesses/${businessId}/reviews/export`).set('Cookie', owner);
       expect(exported.headers['content-type']).toMatch(/text\/csv/);

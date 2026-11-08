@@ -1,6 +1,6 @@
 import { type Logger as PinoLogger, pino } from 'pino';
 import type { AppDependencies } from './app.js';
-import { GetAnalysis, GetDashboard, GetSentimentTrend } from './application/use-cases/analysis/AnalysisQueries.js';
+import { GetAnalysis, GetBusinessesOverview, GetDashboard, GetSentimentTrend } from './application/use-cases/analysis/AnalysisQueries.js';
 import { AnalysisWorker } from './application/use-cases/analysis/AnalysisWorker.js';
 import { ExecuteAnalysis } from './application/use-cases/analysis/ExecuteAnalysis.js';
 import { MAX_REVIEWS_PER_ANALYSIS, RequestAnalysis } from './application/use-cases/analysis/RequestAnalysis.js';
@@ -123,6 +123,7 @@ export class Container implements AppDependencies {
       new GetAnalysis(access, this.analyses),
       new GetDashboard(access, reviews, this.analyses, new InsightComparator()),
       new GetSentimentTrend(access, this.analyses, new SentimentTrend()),
+      new GetBusinessesOverview(businesses, reviews, this.analyses, new InsightComparator()),
     );
     this.healthController = new HealthController(this.db, this.analyzer.providerName, readAppVersion());
   }
