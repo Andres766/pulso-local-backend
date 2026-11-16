@@ -22,10 +22,21 @@ const schema = z.object({
   GEMINI_API_KEY: z.string().optional(),
   GEMINI_MODEL: z.string().default('gemini-3.5-flash'),
   GEMINI_FALLBACK_MODEL: z.string().default('gemini-flash-lite-latest'),
+  /** URL pública del WebSocket (wss://…). Si falta, se deriva de RENDER_EXTERNAL_URL o se usa el mismo origen. */
+  PUBLIC_WS_URL: z.string().url().optional(),
+  /** Render la define sola con la URL pública del servicio. */
+  RENDER_EXTERNAL_URL: z.string().url().optional(),
   LOG_LEVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent']).default('info'),
 });
 
 export type AppConfig = ReturnType<typeof loadConfig>;
+
+/** https://api.onrender.com → wss://api.onrender.com/api/ws; null = el navegador usa su mismo origen. */
+function realtimeUrlFrom(explicit: string | undefined, renderUrl: string | undefined): string | null {
+  if (explicit) return explicit;
+  if (!renderUrl) return null;
+  return `${renderUrl.replace(/^http/, 'ws').replace(/\/$/, '')}/api/ws`;
+}
 
 export function loadConfig(source: NodeJS.ProcessEnv = process.env) {
   const parsed = schema.safeParse(source);
@@ -46,5 +57,6 @@ export function loadConfig(source: NodeJS.ProcessEnv = process.env) {
     cookieSecure: env.COOKIE_SECURE ?? isProduction,
     anthropicApiKey: env.ANTHROPIC_API_KEY?.trim() || undefined,
     geminiApiKey: env.GEMINI_API_KEY?.trim() || undefined,
+    realtimeUrl: realtimeUrlFrom(env.PUBLIC_WS_URL, env.RENDER_EXTERNAL_URL),
   };
 }

@@ -10,6 +10,7 @@ import type { AnalysisController } from './interfaces/http/controllers/AnalysisC
 import type { AuthController } from './interfaces/http/controllers/AuthController.js';
 import type { BusinessController } from './interfaces/http/controllers/BusinessController.js';
 import type { HealthController } from './interfaces/http/controllers/HealthController.js';
+import type { RealtimeController } from './interfaces/http/controllers/RealtimeController.js';
 import type { ReviewController } from './interfaces/http/controllers/ReviewController.js';
 import { errorHandler, notFoundHandler } from './interfaces/http/middlewares/errorHandler.js';
 import { genRequestId } from './interfaces/http/middlewares/requestId.js';
@@ -30,6 +31,7 @@ export interface AppDependencies {
   businessController: BusinessController;
   reviewController: ReviewController;
   analysisController: AnalysisController;
+  realtimeController: RealtimeController;
 }
 
 /** Construye la aplicación Express a partir de sus dependencias ya armadas (inyección de dependencias). */

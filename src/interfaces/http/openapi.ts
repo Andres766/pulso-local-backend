@@ -209,6 +209,16 @@ export const openApiDocument = {
       },
     },
 
+    '/realtime/ticket': {
+      post: {
+        tags: ['Tiempo real'],
+        ...mutation(
+          'Ticket de un solo uso (60 s) para abrir el WebSocket wss://…/api/ws?ticket=… . Por el socket: el cliente envía {type:"subscribe",businessId} y recibe {type:"analysis",businessId,run} en cada cambio de estado del análisis.',
+          { parameters: [csrf] },
+        ),
+        responses: { 201: ok('Ticket y URL del WebSocket'), ...errors(401, 403) },
+      },
+    },
     '/businesses/overview': {
       get: {
         tags: ['Análisis'],

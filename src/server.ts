@@ -14,14 +14,19 @@ async function main(): Promise<void> {
   const recovered = await container.analyses.recoverInterrupted('El análisis se interrumpió por un reinicio del servidor.');
   if (recovered.requeued || recovered.failed) logger.warn(recovered, 'Análisis interrumpidos recuperados');
   container.jobs.start();
+  await container.realtimeBus.start();
 
   const server = createApp(container).listen(config.PORT, () => {
     logger.info({ port: config.PORT, ai: container.analyzer.providerName }, 'PulsoLocal API lista');
   });
+  // El mismo servidor HTTP atiende el "Upgrade" a WebSocket en /api/ws.
+  container.realtime.attach(server);
 
   // Apagado ordenado: deja de aceptar conexiones, espera el análisis en curso y cierra el pool.
   const shutdown = (signal: string) => {
     logger.info({ signal }, 'Apagando…');
+    container.realtime.close();
+    void container.realtimeBus.stop();
     server.close(() => {
       void container.jobs
         .stop()

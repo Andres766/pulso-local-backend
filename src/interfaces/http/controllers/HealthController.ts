@@ -11,6 +11,8 @@ export class HealthController {
     private readonly db: { ping(): Promise<boolean> },
     private readonly aiProvider: string,
     private readonly version: string,
+    /** Conexiones WebSocket abiertas en esta instancia (estado por conexión). */
+    private readonly realtime: { stats(): { connections: number } } = { stats: () => ({ connections: 0 }) },
   ) {}
 
   check = async (_req: Request, res: Response) => {
@@ -21,6 +23,7 @@ export class HealthController {
       ai: this.aiProvider,
       version: this.version,
       uptimeSeconds: Math.round((Date.now() - this.startedAt) / 1000),
+      realtimeConnections: this.realtime.stats().connections,
     });
   };
 }

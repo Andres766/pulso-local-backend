@@ -32,13 +32,19 @@ import { PgBusinessRepository } from './infrastructure/db/repositories/PgBusines
 import { PgReviewRepository } from './infrastructure/db/repositories/PgReviewRepository.js';
 import { PgUserRepository } from './infrastructure/db/repositories/PgUserRepository.js';
 import { PollingJobRunner } from './infrastructure/jobs/PollingJobRunner.js';
+import { PgNotifyRealtimeBus } from './infrastructure/realtime/PgNotifyRealtimeBus.js';
+import { PublishingAnalysisRepository } from './infrastructure/realtime/PublishingAnalysisRepository.js';
+import type { RealtimeBus } from './infrastructure/realtime/RealtimeBus.js';
 import { BcryptPasswordHasher } from './infrastructure/security/BcryptPasswordHasher.js';
 import { JwtTokenService } from './infrastructure/security/JwtTokenService.js';
+import { RealtimeTicketService } from './infrastructure/security/RealtimeTicketService.js';
 import { AnalysisController } from './interfaces/http/controllers/AnalysisController.js';
 import { AuthController } from './interfaces/http/controllers/AuthController.js';
 import { BusinessController } from './interfaces/http/controllers/BusinessController.js';
 import { HealthController } from './interfaces/http/controllers/HealthController.js';
+import { RealtimeController } from './interfaces/http/controllers/RealtimeController.js';
 import { ReviewController } from './interfaces/http/controllers/ReviewController.js';
+import { RealtimeGateway } from './interfaces/realtime/RealtimeGateway.js';
 
 /**
  * Raíz de composición (Composition Root): el ÚNICO lugar donde se instancian las clases
@@ -53,12 +59,16 @@ export class Container implements AppDependencies {
   readonly analyzer: ReviewAnalyzer;
   readonly analyses: PgAnalysisRepository;
   readonly jobs: PollingJobRunner;
+  /** Backplane Pub/Sub entre instancias (LISTEN/NOTIFY) y canal WebSocket hacia los navegadores. */
+  readonly realtimeBus: RealtimeBus;
+  readonly realtime: RealtimeGateway;
 
   readonly authController: AuthController;
   readonly businessController: BusinessController;
   readonly reviewController: ReviewController;
   readonly analysisController: AnalysisController;
   readonly healthController: HealthController;
+  readonly realtimeController: RealtimeController;
 
   constructor(readonly config: AppConfig) {
     this.logger = pino({
@@ -78,11 +88,16 @@ export class Container implements AppDependencies {
     this.tokens = new JwtTokenService(config.JWT_SECRET, config.JWT_EXPIRES_IN_HOURS);
     this.sessions = new ValidateSession(users);
     this.analyzer = createReviewAnalyzer(config, this.logger);
+    this.realtimeBus = new PgNotifyRealtimeBus(config.DATABASE_URL, this.db, this.logger);
+    // Los casos de uso que cambian el estado de un análisis usan el repositorio decorado: cada
+    // cambio guardado se publica en el bus sin que la aplicación sepa de WebSockets.
+    const trackedAnalyses = new PublishingAnalysisRepository(this.analyses, this.realtimeBus);
+    const tickets = new RealtimeTicketService(config.JWT_SECRET);
 
     // Aplicación
     const access = new BusinessAccess(businesses);
     const executeAnalysis = new ExecuteAnalysis(
-      this.analyses,
+      trackedAnalyses,
       businesses,
       reviews,
       this.analyzer,
@@ -90,7 +105,7 @@ export class Container implements AppDependencies {
       this.logger,
       MAX_REVIEWS_PER_ANALYSIS,
     );
-    this.jobs = new PollingJobRunner(new AnalysisWorker(this.analyses, executeAnalysis, this.logger), this.logger);
+    this.jobs = new PollingJobRunner(new AnalysisWorker(trackedAnalyses, executeAnalysis, this.logger), this.logger);
 
     // Interfaces HTTP
     this.authController = new AuthController(
@@ -119,12 +134,25 @@ export class Container implements AppDependencies {
       new DeleteReview(access, reviews),
     );
     this.analysisController = new AnalysisController(
-      new RequestAnalysis(access, reviews, this.analyses, this.analyzer, this.jobs),
+      new RequestAnalysis(access, reviews, trackedAnalyses, this.analyzer, this.jobs),
       new GetAnalysis(access, this.analyses),
       new GetDashboard(access, reviews, this.analyses, new InsightComparator()),
       new GetSentimentTrend(access, this.analyses, new SentimentTrend()),
       new GetBusinessesOverview(businesses, reviews, this.analyses, new InsightComparator()),
     );
-    this.healthController = new HealthController(this.db, this.analyzer.providerName, readAppVersion());
+    this.realtimeController = new RealtimeController(this.tokens, tickets, config.realtimeUrl);
+
+    // Tiempo real: el gateway entrega a los navegadores lo que llega por el bus (de cualquier instancia).
+    this.realtime = new RealtimeGateway({
+      redeemTicket: (ticket) => tickets.redeem(ticket),
+      tokens: this.tokens,
+      sessions: this.sessions,
+      requireOwned: (businessId, userId) => access.requireOwned(businessId, userId),
+      allowedOrigins: [config.FRONTEND_ORIGIN],
+      logger: this.logger,
+    });
+    this.realtimeBus.subscribe((event) => this.realtime.deliver(event));
+
+    this.healthController = new HealthController(this.db, this.analyzer.providerName, readAppVersion(), this.realtime);
   }
 }
