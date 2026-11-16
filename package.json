@@ -18,7 +18,8 @@
     "lint": "biome lint",
     "format": "biome format --write",
     "check": "biome check",
-    "eval": "tsx src/scripts/evaluate.ts"
+    "eval": "tsx src/scripts/evaluate.ts",
+    "demo": "tsx src/scripts/load-demo.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.129.0",

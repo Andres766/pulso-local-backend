@@ -55,6 +55,7 @@ La clave de API va **solo** en `.env` o en las variables de entorno del servidor
 | `npm run check` | lint y formato con Biome |
 | `npm run eval` | exactitud del sentimiento: léxico local vs. Gemini (`-- --guardar` escribe `docs/EVALUACION.md`) |
 | `npm run seed` | datos de demostración (idempotente; no corre en producción). Con `-- --hasta 30/09/2026` carga solo hasta esa fecha: así se arma un historial de dos análisis para ver la evolución |
+| `npm run demo -- <url>` | carga los mismos datos de demostración **a través de la API** (sirve en producción, por ejemplo tras crear una base nueva en Render): dos tandas de reseñas con su análisis cada una |
 | `npm run build` / `npm start` | build y ejecución de producción |
 
 Pruebas contra PostgreSQL real (la base debe terminar en `_test`, porque se borra su esquema):
