@@ -270,9 +270,52 @@ la reintenta en el servidor con otro modelo.
 
 ---
 
-## 9. API REST
+## 9. Tiempo real con WebSockets
 
-El contrato completo (24 operaciones, con parámetros, cuerpos y errores) está en **`GET /api/openapi.json`**
+Antes, el dashboard preguntaba cada 1,5 s "¿ya terminó el análisis?" (*short polling*): muchas peticiones vacías
+mientras la IA trabajaba ~1 minuto. Ahora el servidor **avisa** cada cambio de estado por un WebSocket y el polling
+queda solo como respaldo.
+
+```
+ RequestAnalysis / AnalysisWorker / ExecuteAnalysis      (no saben que existe el tiempo real)
+            │ save / claimNext / completeWithResults
+            ▼
+ PublishingAnalysisRepository  ── Decorator del repositorio: guarda y publica el evento
+            │ publish(event)
+            ▼
+ PgNotifyRealtimeBus  ── pg_notify('pulso_analysis', …)  ──►  PostgreSQL  ──► LISTEN en CADA instancia
+                                                                                   │
+                                                                                   ▼
+ RealtimeGateway (ws)  ── salas por negocio ──► fan-out por lotes ──► pestañas suscritas
+```
+
+| Concepto | Cómo se aplica | Dónde |
+|---|---|---|
+| **Estado por conexión** | Cada socket abierto es un objeto en RAM con su usuario, sus suscripciones y su latido; al cerrarse se libera (sin fugas) | `RealtimeGateway` |
+| **Fan-out** | Un evento se serializa una vez y se envía a todas las pestañas suscritas al negocio, **en lotes de 500** cediendo el event loop con `setImmediate` | `RealtimeGateway.fanOut()` |
+| **Escalado horizontal (backplane Pub/Sub)** | `LISTEN/NOTIFY` de PostgreSQL cumple el papel de Redis Pub/Sub: el análisis puede correr en la instancia A y el navegador estar conectado a la B | `PgNotifyRealtimeBus` (probado con dos instancias contra PostgreSQL real) |
+| **Respaldo** | Si el socket no está "en vivo" (red que lo bloquea, servidor reiniciándose), el frontend vuelve al polling; reconexión con espera exponencial y azar | `RealtimeClient`, `useAnalysisPolling` |
+| **Patrones** | Observer/Pub-Sub (puerto `AnalysisEventPublisher`), Decorator (repositorio), Adapter (bus y gateway) | `domain/ports/Services.ts`, `infrastructure/realtime/`, `interfaces/realtime/` |
+
+**Por qué un ticket.** En producción el frontend (Vercel) y la API (Render) están en dominios distintos y Vercel no
+reenvía WebSockets: el navegador se conecta directo a `wss://pulso-local-backend.onrender.com/api/ws`, adonde la
+cookie `SameSite=Strict` no viaja. El frontend pide `POST /api/realtime/ticket` (con su cookie y el header anti-CSRF)
+y abre el socket con `?ticket=`. En el mismo origen (Vite, nginx) basta la cookie.
+
+**Seguridad del canal**
+
+| Riesgo | Control |
+|---|---|
+| Secuestro del WebSocket entre sitios (CSWSH: el WebSocket no aplica CORS) | Se exige un `Origin` de la lista blanca en el *handshake* (403 si no) |
+| Robo o reutilización del ticket | JWT firmado de **60 s**, de **un solo uso** (`jti` descartado al usarse) y con otra audiencia: no sirve como cookie de sesión |
+| Sesión cerrada con el socket abierto | Se revalida la versión de sesión en cada suscripción; si cambió la contraseña, se cierra (4401) |
+| IDOR por el socket | `subscribe` pasa por `BusinessAccess.requireOwned()`; un negocio ajeno responde `NOT_FOUND` y no recibe eventos |
+| Mensajes maliciosos | Esquema Zod estricto (UUID), máx. 2 KB por mensaje, 30 mensajes / 10 s (si no, se cierra con 1008) |
+| Agotar memoria (C10K) | Máx. 10 conexiones por usuario y 20 suscripciones por conexión; latido cada 30 s que cierra conexiones muertas; un cliente lento con más de 1 MB pendiente deja de recibir |
+
+## 10. API REST
+
+El contrato completo (25 operaciones, con parámetros, cuerpos y errores) está en **`GET /api/openapi.json`**
 (OpenAPI 3.1; se abre en https://editor.swagger.io). Una prueba recorre las rutas registradas en Express y falla
 si alguna no está documentada.
 
@@ -282,11 +325,12 @@ si alguna no está documentada.
 | Autenticación | `POST /auth/register` · `POST /auth/login` · `POST /auth/logout` · `GET /auth/me` · `POST /auth/password` · `DELETE /auth/account` |
 | Negocios | `GET`/`POST /businesses` · `GET`/`PATCH`/`DELETE /businesses/:id` |
 | Reseñas | `GET /businesses/:id/reviews` (filtros, orden, paginación) · `POST …/reviews/csv` · `POST …/reviews/text` · `GET …/reviews/export` · `DELETE …/reviews` · `DELETE …/reviews/:reviewId` |
+| Tiempo real | `POST /realtime/ticket` y el WebSocket `/api/ws` (sección 9) |
 | Análisis | `POST /businesses/:id/analyses` (202) · `GET /analyses/:id` · `GET /businesses/:id/dashboard` · `GET /businesses/:id/trend` · `GET /businesses/overview` (pulso de todos los negocios) |
 
 ---
 
-## 10. Evaluación de la IA
+## 11. Evaluación de la IA
 
 60 reseñas etiquetadas a mano (`samples/evaluacion_sentimiento.csv`) con casos difíciles; se evalúa solo el
 texto (sin estrellas). Detalle completo en `docs/EVALUACION.md` (`npm run eval -- --guardar`).
@@ -301,7 +345,7 @@ texto (sin estrellas). Detalle completo en `docs/EVALUACION.md` (`npm run eval -
 
 ---
 
-## 11. Estado del avance y próximos pasos
+## 12. Estado del avance y próximos pasos
 
 **Avance 1 (29 sep)**
 - [x] Arquitectura hexagonal, autenticación segura, CRUD de negocios, importación CSV/texto con deduplicación.
@@ -330,13 +374,19 @@ texto (sin estrellas). Detalle completo en `docs/EVALUACION.md` (`npm run eval -
   cierra las demás sesiones, eliminación de la cuenta (Habeas Data) y ID de petición en logs y errores.
 - [x] **Funciones nuevas:** editar/eliminar negocios, eliminar reseñas, ordenar y filtrar por estrellas,
   tendencia mensual, consumo de IA por análisis, segundo negocio de ejemplo.
-- [x] **Evaluación de exactitud** (sección 10) y **contrato OpenAPI**.
+- [x] **Evaluación de exactitud** (sección 11) y **contrato OpenAPI**.
 - [x] **Calidad:** Biome, CI en ambos repositorios, pruebas contra PostgreSQL real, pruebas unitarias del
   frontend y end-to-end con Playwright, 0 vulnerabilidades en `npm audit`.
 - [x] **Frontend:** notificaciones y diálogo accesibles, página Mi cuenta, 404 y ErrorBoundary, carga diferida,
   navegación accesible, plantilla CSV, guía de contraseña y manifiesto web.
 
+**Taller de tiempo real (15 nov)**
+- [x] **WebSockets** para el estado de los análisis, con *backplane* `LISTEN/NOTIFY`, fan-out por lotes, ticket de
+  un solo uso y polling de respaldo (sección 9). Dos pestañas abiertas se enteran al instante del análisis que lanzó
+  la otra; *Mis negocios* se actualiza sola.
+- [x] Interfaz en **español e inglés** y tema claro/oscuro.
+
 **Siguientes pasos posibles**
 1. Ampliar el conjunto de evaluación (≈ 200 reseñas) y medir también la detección de temas.
-2. Notificar al dueño por correo cuando un análisis termina o cuando una queja crece.
+2. Notificar al dueño por correo cuando una queja crece (el evento ya existe: bastaría otro suscriptor del bus).
 3. Importar reseñas directamente desde Google Business Profile (API oficial).

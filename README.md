@@ -9,6 +9,7 @@ respaldadas con cifras reales.
 - Arquitectura, patrones, modelo de datos y seguridad: **[docs/ARQUITECTURA.md](docs/ARQUITECTURA.md)**
 - Exactitud medida de la IA: **[docs/EVALUACION.md](docs/EVALUACION.md)**
 - Contrato de la API: `GET /api/openapi.json` (OpenAPI 3.1)
+- Tiempo real: WebSocket en `/api/ws` para el estado de los análisis (sección 9 de la arquitectura)
 - En línea: https://pulso-local-frontend.vercel.app · API: https://pulso-local-backend.onrender.com/api/health
 
 **Usuario demo:** `demo@pulsolocal.co` / `Galeras2026Pasto` (cinco negocios de Pasto: Café Galeras, Restaurante El Fogón, Peluquería Lunaria, Artesanías
@@ -50,7 +51,7 @@ La clave de API va **solo** en `.env` o en las variables de entorno del servidor
 | Script | |
 |---|---|
 | `npm run dev` | API con recarga automática |
-| `npm test` | 78 pruebas (dominio, casos de uso, IA, HTTP); con `TEST_DATABASE_URL`, 8 más contra PostgreSQL |
+| `npm test` | 84 pruebas (dominio, casos de uso, IA, HTTP, WebSockets); con `TEST_DATABASE_URL`, 9 más contra PostgreSQL |
 | `npm run typecheck` | chequeo de tipos |
 | `npm run check` | lint y formato con Biome |
 | `npm run eval` | exactitud del sentimiento: léxico local vs. Gemini (`-- --guardar` escribe `docs/EVALUACION.md`) |
