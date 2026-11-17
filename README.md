@@ -40,7 +40,9 @@ Para todo en Docker (base de datos, API y frontend con nginx): `docker compose u
 
 ## IA
 El motor de IA se elige con `AI_PROVIDER` (por defecto `auto`):
-- Con `GEMINI_API_KEY` → **Gemini** (`gemini-3.5-flash`, plan gratuito, con `gemini-flash-lite-latest` de respaldo).
+- Con `GEMINI_API_KEY` → **Gemini** (`gemini-flash-lite-latest`, plan gratuito, con `gemini-3.5-flash` de respaldo). Se usa
+  Flash-Lite porque en el plan gratuito 3.5 Flash permite solo 20 llamadas al día por proyecto (≈ 5 análisis), y
+  Flash-Lite midió la misma exactitud (ver `docs/EVALUACION.md`).
 - Con `ANTHROPIC_API_KEY` → **Claude** (`claude-opus-5`); tiene prioridad si están las dos.
 - Sin ninguna clave → **analizador léxico local** en español (gratis y sin red).
 

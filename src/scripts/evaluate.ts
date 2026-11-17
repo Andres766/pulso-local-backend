@@ -109,7 +109,7 @@ async function main(): Promise<void> {
   const engines: { name: string; analyzer: ReviewAnalyzer }[] = [{ name: 'Léxico local', analyzer: new HeuristicReviewAnalyzer() }];
   const key = process.env.GEMINI_API_KEY?.trim();
   if (key) {
-    const model = process.env.GEMINI_MODEL ?? 'gemini-3.5-flash';
+    const model = process.env.GEMINI_MODEL ?? 'gemini-flash-lite-latest';
     engines.push({ name: `Gemini (${model})`, analyzer: new GeminiReviewAnalyzer(key, model, process.env.GEMINI_FALLBACK_MODEL, silent) });
   } else {
     console.log('Sin GEMINI_API_KEY: solo se evalúa el léxico local.');

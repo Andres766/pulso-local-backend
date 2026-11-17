@@ -31,7 +31,7 @@ una recomendación la calcula el código, no el LLM**. Así el modelo no puede i
 | Frontend | React 19 + TypeScript + Vite + Tailwind CSS 4 | SPA tipada; Tailwind ya se usa en el curso |
 | Backend | Node.js 22 + Express 5 + TypeScript | Express 5 maneja errores `async` de forma nativa |
 | Base de datos | PostgreSQL 17 | Relacional (el modelo lo es), transacciones, `JSONB` para las citas |
-| IA (en uso) | API de **Gemini** (Google), modelo `gemini-3.5-flash` con respaldo `gemini-flash-lite-latest` | Plan gratuito; salida JSON restringida por esquema y validada con Zod |
+| IA (en uso) | API de **Gemini** (Google), modelo `gemini-flash-lite-latest` con respaldo `gemini-3.5-flash` | Plan gratuito; salida JSON restringida por esquema y validada con Zod |
 | IA (alternativa) | API de Claude (Anthropic), modelo `claude-opus-5` | Mismo contrato: se activa solo con poner `ANTHROPIC_API_KEY` |
 | IA de respaldo | Analizador léxico propio en español | Funciona sin red ni costo, y sirve para las pruebas automáticas |
 | Infraestructura | Docker Compose (db + api + nginx) | Todo el entorno se levanta con un comando |
@@ -338,7 +338,12 @@ texto (sin estrellas). Detalle completo en `docs/EVALUACION.md` (`npm run eval -
 | Motor | Exactitud | F1 macro | Sarcasmo | Jerga colombiana | Negaciones |
 |---|---|---|---|---|---|
 | Léxico local | 66,7 % | 0,664 | 0 / 7 | 5 / 8 | 7 / 10 |
-| Gemini (`gemini-3.5-flash`) | **93,3 %** | **0,928** | **7 / 7** | **8 / 8** | **10 / 10** |
+| Gemini 3.5 Flash-Lite (`gemini-flash-lite-latest`, **en uso**) | **91,7–93,3 %** (2 corridas) | **0,911–0,928** | **7 / 7** | 7 / 8 | **10 / 10** |
+| Gemini 3.5 Flash (`gemini-3.5-flash`, respaldo) | **93,3 %** | **0,928** | **7 / 7** | **8 / 8** | **10 / 10** |
+
+**Por qué Flash-Lite.** En el plan gratuito, 3.5 Flash permite solo **20 llamadas al día por proyecto** (≈ 5 análisis):
+el día de las pruebas la cuota se agotó y un análisis tardó 4 minutos en reintentos. Flash-Lite midió la misma exactitud,
+analiza en ~25 s y su cuota gratuita es mayor; 3.5 Flash queda de respaldo.
 
 **Costo medido:** un análisis de 44 reseñas con Gemini hace 4 llamadas y consume ≈ 5 200 tokens de entrada y
 ≈ 6 000 de salida (incluido el razonamiento); en el plan gratuito, $0.

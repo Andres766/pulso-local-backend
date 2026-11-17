@@ -20,8 +20,10 @@ const schema = z.object({
   ANTHROPIC_API_KEY: z.string().optional(),
   CLAUDE_MODEL: z.string().default('claude-opus-5'),
   GEMINI_API_KEY: z.string().optional(),
-  GEMINI_MODEL: z.string().default('gemini-3.5-flash'),
-  GEMINI_FALLBACK_MODEL: z.string().default('gemini-flash-lite-latest'),
+  // Flash-Lite como principal: en el plan gratuito 3.5 Flash solo permite 20 llamadas al día por
+  // proyecto (≈ 5 análisis); Flash-Lite midió la misma exactitud (93,3 %, docs/EVALUACION.md) y es más rápido.
+  GEMINI_MODEL: z.string().default('gemini-flash-lite-latest'),
+  GEMINI_FALLBACK_MODEL: z.string().default('gemini-3.5-flash'),
   /** URL pública del WebSocket (wss://…). Si falta, se deriva de RENDER_EXTERNAL_URL o se usa el mismo origen. */
   PUBLIC_WS_URL: z.string().url().optional(),
   /** Render la define sola con la URL pública del servicio. */
