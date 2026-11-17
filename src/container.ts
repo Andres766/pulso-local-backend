@@ -1,5 +1,13 @@
 import { type Logger as PinoLogger, pino } from 'pino';
 import type { AppDependencies } from './app.js';
+import {
+  AdminAccess,
+  GetAdminDashboard,
+  ListUsersForAdmin,
+  PromoteConfiguredAdmins,
+  RetryFailedAnalysis,
+  UnlockUser,
+} from './application/use-cases/admin/AdminUseCases.js';
 import { GetAnalysis, GetBusinessesOverview, GetDashboard, GetSentimentTrend } from './application/use-cases/analysis/AnalysisQueries.js';
 import { AnalysisWorker } from './application/use-cases/analysis/AnalysisWorker.js';
 import { ExecuteAnalysis } from './application/use-cases/analysis/ExecuteAnalysis.js';
@@ -27,6 +35,7 @@ import { createReviewAnalyzer } from './infrastructure/ai/ReviewAnalyzerFactory.
 import { CsvReviewExporter } from './infrastructure/csv/CsvReviewExporter.js';
 import { CsvReviewParser, PastedTextParser } from './infrastructure/csv/ReviewTextParsers.js';
 import { Database } from './infrastructure/db/Database.js';
+import { PgAdminReadModel } from './infrastructure/db/repositories/PgAdminReadModel.js';
 import { PgAnalysisRepository } from './infrastructure/db/repositories/PgAnalysisRepository.js';
 import { PgBusinessRepository } from './infrastructure/db/repositories/PgBusinessRepository.js';
 import { PgReviewRepository } from './infrastructure/db/repositories/PgReviewRepository.js';
@@ -38,6 +47,7 @@ import type { RealtimeBus } from './infrastructure/realtime/RealtimeBus.js';
 import { BcryptPasswordHasher } from './infrastructure/security/BcryptPasswordHasher.js';
 import { JwtTokenService } from './infrastructure/security/JwtTokenService.js';
 import { RealtimeTicketService } from './infrastructure/security/RealtimeTicketService.js';
+import { AdminController } from './interfaces/http/controllers/AdminController.js';
 import { AnalysisController } from './interfaces/http/controllers/AnalysisController.js';
 import { AuthController } from './interfaces/http/controllers/AuthController.js';
 import { BusinessController } from './interfaces/http/controllers/BusinessController.js';
@@ -69,6 +79,9 @@ export class Container implements AppDependencies {
   readonly analysisController: AnalysisController;
   readonly healthController: HealthController;
   readonly realtimeController: RealtimeController;
+  readonly adminController: AdminController;
+  /** Se ejecuta al arrancar (server.ts): da el rol de admin a los correos de ADMIN_EMAILS. */
+  readonly promoteAdmins: PromoteConfiguredAdmins;
 
   constructor(readonly config: AppConfig) {
     this.logger = pino({
@@ -141,6 +154,17 @@ export class Container implements AppDependencies {
       new GetBusinessesOverview(businesses, reviews, this.analyses, new InsightComparator()),
     );
     this.realtimeController = new RealtimeController(this.tokens, tickets, config.realtimeUrl);
+
+    // Administración (RBAC): cifras agregadas, desbloqueo de cuentas y reintento de análisis fallidos.
+    const adminAccess = new AdminAccess(users);
+    const adminReadModel = new PgAdminReadModel(this.db);
+    this.adminController = new AdminController(
+      new GetAdminDashboard(adminAccess, adminReadModel),
+      new ListUsersForAdmin(adminAccess, adminReadModel),
+      new UnlockUser(adminAccess, users),
+      new RetryFailedAnalysis(adminAccess, trackedAnalyses, reviews, this.analyzer, this.jobs),
+    );
+    this.promoteAdmins = new PromoteConfiguredAdmins(users);
 
     // Tiempo real: el gateway entrega a los navegadores lo que llega por el bus (de cualquier instancia).
     this.realtime = new RealtimeGateway({

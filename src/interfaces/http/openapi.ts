@@ -209,6 +209,36 @@ export const openApiDocument = {
       },
     },
 
+    '/admin/dashboard': {
+      get: {
+        tags: ['Administración'],
+        summary: 'Cifras de la plataforma, consumo de IA por día y análisis fallidos (solo administradores)',
+        security: authed,
+        responses: { 200: ok('Panel de administración'), ...errors(401, 403) },
+      },
+    },
+    '/admin/users': {
+      get: {
+        tags: ['Administración'],
+        summary: 'Usuarios con su rol, bloqueo y conteos (sin reseñas ni análisis ajenos)',
+        security: authed,
+        responses: { 200: ok('Usuarios'), ...errors(401, 403) },
+      },
+    },
+    '/admin/users/{id}/unlock': {
+      post: {
+        tags: ['Administración'],
+        ...mutation('Quitar el bloqueo por intentos fallidos de una cuenta', { parameters: [idParam, csrf] }),
+        responses: { 200: ok('Cuenta desbloqueada'), ...errors(401, 403, 404) },
+      },
+    },
+    '/admin/analyses/{id}/retry': {
+      post: {
+        tags: ['Administración'],
+        ...mutation('Reintentar un análisis fallido (crea uno nuevo en la cola)', { parameters: [idParam, csrf] }),
+        responses: { 202: ok('Análisis en cola', ref('AnalysisRun')), ...errors(401, 403, 404, 409, 429) },
+      },
+    },
     '/realtime/ticket': {
       post: {
         tags: ['Tiempo real'],

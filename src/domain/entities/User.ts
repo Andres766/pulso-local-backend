@@ -2,6 +2,10 @@ import { randomUUID } from 'node:crypto';
 import { ValidationError } from '../errors/DomainError.js';
 import type { Email } from '../value-objects/Email.js';
 
+/** Rol del usuario: control de acceso por roles (RBAC). */
+export const USER_ROLES = ['user', 'admin'] as const;
+export type UserRole = (typeof USER_ROLES)[number];
+
 export interface UserProps {
   id: string;
   email: Email;
@@ -12,6 +16,8 @@ export interface UserProps {
   lockedUntil: Date | null;
   /** Sube con cada cambio de contraseña: invalida todos los tokens emitidos antes. */
   tokenVersion: number;
+  /** "admin" solo se asigna desde el servidor (npm run make-admin o ADMIN_EMAILS), nunca desde la web. */
+  role: UserRole;
   createdAt: Date;
 }
 
@@ -36,6 +42,7 @@ export class User {
       failedLogins: 0,
       lockedUntil: null,
       tokenVersion: 0,
+      role: 'user',
       createdAt: new Date(),
     });
   }
@@ -73,6 +80,23 @@ export class User {
     this.props = { ...this.props, failedLogins: 0, lockedUntil: null };
   }
 
+  get isAdmin(): boolean {
+    return this.props.role === 'admin';
+  }
+
+  promoteToAdmin(): void {
+    this.props = { ...this.props, role: 'admin' };
+  }
+
+  revokeAdmin(): void {
+    this.props = { ...this.props, role: 'user' };
+  }
+
+  /** Un administrador quita el bloqueo por intentos fallidos (el dueño olvidó su contraseña y ya la recordó). */
+  unlock(): void {
+    this.props = { ...this.props, failedLogins: 0, lockedUntil: null };
+  }
+
   /** Reconstituye una entidad ya persistida (sin volver a validar reglas de creación). */
   static restore(props: UserProps): User {
     return new User(props);
@@ -99,12 +123,15 @@ export class User {
   get tokenVersion(): number {
     return this.props.tokenVersion;
   }
+  get role(): UserRole {
+    return this.props.role;
+  }
   get createdAt(): Date {
     return this.props.createdAt;
   }
 
   /** Proyección segura para enviar al cliente: nunca incluye el hash. */
-  toPublic(): { id: string; email: string; name: string } {
-    return { id: this.id, email: this.email.value, name: this.name };
+  toPublic(): { id: string; email: string; name: string; role: UserRole } {
+    return { id: this.id, email: this.email.value, name: this.name, role: this.role };
   }
 }

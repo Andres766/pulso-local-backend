@@ -19,7 +19,8 @@
     "format": "biome format --write",
     "check": "biome check",
     "eval": "tsx src/scripts/evaluate.ts",
-    "demo": "tsx src/scripts/load-demo.ts"
+    "demo": "tsx src/scripts/load-demo.ts",
+    "make-admin": "tsx src/scripts/make-admin.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.129.0",

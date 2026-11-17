@@ -42,6 +42,12 @@ export function createApiRouter(c: AppDependencies): Router {
   router.get('/businesses', auth, c.businessController.list);
   router.post('/businesses', auth, c.businessController.create);
   router.post('/realtime/ticket', auth, c.realtimeController.ticket);
+
+  // Administración: el rol se verifica en cada caso de uso (AdminAccess); un usuario normal recibe 403.
+  router.get('/admin/dashboard', auth, c.adminController.dashboard);
+  router.get('/admin/users', auth, c.adminController.users);
+  router.post('/admin/users/:id/unlock', auth, c.adminController.unlock);
+  router.post('/admin/analyses/:id/retry', auth, analysisLimiter, c.adminController.retry);
   router.get('/businesses/overview', auth, c.analysisController.overview); // antes de /:id
   router.get('/businesses/:id', auth, c.businessController.show);
   router.patch('/businesses/:id', auth, c.businessController.update);

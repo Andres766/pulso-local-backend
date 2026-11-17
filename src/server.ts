@@ -1,6 +1,7 @@
 import { createApp } from './app.js';
 import { loadConfig } from './config/env.js';
 import { Container } from './container.js';
+import { Email } from './domain/value-objects/Email.js';
 import { runMigrations } from './infrastructure/db/migrate.js';
 
 async function main(): Promise<void> {
@@ -9,6 +10,18 @@ async function main(): Promise<void> {
 
   const applied = await runMigrations(container.db);
   if (applied.length) logger.info({ applied }, 'Migraciones aplicadas');
+
+  // Administradores definidos por configuración (ADMIN_EMAILS): sin acceso directo a la base.
+  const adminEmails = config.adminEmails.flatMap((raw) => {
+    try {
+      return [Email.create(raw)];
+    } catch {
+      logger.warn({ raw }, 'Correo inválido en ADMIN_EMAILS; se ignora');
+      return [];
+    }
+  });
+  const promoted = await container.promoteAdmins.execute(adminEmails);
+  if (promoted.length) logger.info({ promoted }, 'Rol de administrador asignado');
 
   // Lo que quedó "running" por un reinicio vuelve a la cola (si le quedan intentos) y el worker arranca.
   const recovered = await container.analyses.recoverInterrupted('El análisis se interrumpió por un reinicio del servidor.');

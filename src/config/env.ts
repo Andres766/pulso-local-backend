@@ -28,6 +28,8 @@ const schema = z.object({
   PUBLIC_WS_URL: z.string().url().optional(),
   /** Render la define sola con la URL pública del servicio. */
   RENDER_EXTERNAL_URL: z.string().url().optional(),
+  /** Correos (separados por coma) que reciben el rol de administrador al arrancar, si ya tienen cuenta. */
+  ADMIN_EMAILS: z.string().optional(),
   LOG_LEVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent']).default('info'),
 });
 
@@ -60,5 +62,9 @@ export function loadConfig(source: NodeJS.ProcessEnv = process.env) {
     anthropicApiKey: env.ANTHROPIC_API_KEY?.trim() || undefined,
     geminiApiKey: env.GEMINI_API_KEY?.trim() || undefined,
     realtimeUrl: realtimeUrlFrom(env.PUBLIC_WS_URL, env.RENDER_EXTERNAL_URL),
+    adminEmails: (env.ADMIN_EMAILS ?? '')
+      .split(',')
+      .map((e) => e.trim().toLowerCase())
+      .filter(Boolean),
   };
 }

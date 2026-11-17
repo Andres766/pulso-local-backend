@@ -1,4 +1,4 @@
-import { User } from '../../../domain/entities/User.js';
+import { User, type UserRole } from '../../../domain/entities/User.js';
 import type { UserRepository } from '../../../domain/ports/Repositories.js';
 import { Email } from '../../../domain/value-objects/Email.js';
 import type { Database } from '../Database.js';
@@ -11,6 +11,7 @@ interface UserRow {
   failed_logins: number;
   locked_until: Date | null;
   token_version: number;
+  role: UserRole;
   created_at: Date;
 }
 
@@ -30,11 +31,22 @@ export class PgUserRepository implements UserRepository {
 
   async save(user: User): Promise<void> {
     await this.db.query(
-      `INSERT INTO users (id, email, name, password_hash, failed_logins, locked_until, token_version, created_at)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+      `INSERT INTO users (id, email, name, password_hash, failed_logins, locked_until, token_version, role, created_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
        ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name, password_hash = EXCLUDED.password_hash,
-         failed_logins = EXCLUDED.failed_logins, locked_until = EXCLUDED.locked_until, token_version = EXCLUDED.token_version`,
-      [user.id, user.email.value, user.name, user.passwordHash, user.failedLogins, user.lockedUntil, user.tokenVersion, user.createdAt],
+         failed_logins = EXCLUDED.failed_logins, locked_until = EXCLUDED.locked_until,
+         token_version = EXCLUDED.token_version, role = EXCLUDED.role`,
+      [
+        user.id,
+        user.email.value,
+        user.name,
+        user.passwordHash,
+        user.failedLogins,
+        user.lockedUntil,
+        user.tokenVersion,
+        user.role,
+        user.createdAt,
+      ],
     );
   }
 
@@ -52,6 +64,7 @@ export class PgUserRepository implements UserRepository {
       failedLogins: row.failed_logins,
       lockedUntil: row.locked_until,
       tokenVersion: row.token_version,
+      role: row.role,
       createdAt: row.created_at,
     });
   }

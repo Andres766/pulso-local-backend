@@ -4,13 +4,18 @@ import type { Review } from '../src/domain/entities/Review.js';
 import type { User } from '../src/domain/entities/User.js';
 import type { InsightReport } from '../src/domain/model/Insight.js';
 import type {
+  AdminReadModel,
   AnalysisRepository,
   AnalysisResults,
   BusinessRepository,
+  DailyUsage,
+  FailedAnalysis,
+  PlatformOverview,
   ReviewFilter,
   ReviewRepository,
   ReviewWithInsight,
   UserRepository,
+  UserSummary,
 } from '../src/domain/ports/Repositories.js';
 import type { JobQueue, Logger, PasswordHasher, TokenPayload, TokenService } from '../src/domain/ports/Services.js';
 import type { MonthlySentiment } from '../src/domain/services/SentimentTrend.js';
@@ -198,3 +203,88 @@ export class ManualQueue implements JobQueue {
 }
 
 export const silentLogger: Logger = { info() {}, warn() {}, error() {} };
+
+/** Panel de administración sobre los repositorios en memoria (mismas reglas que PgAdminReadModel). */
+export class InMemoryAdminReadModel implements AdminReadModel {
+  constructor(
+    private readonly users: InMemoryUsers,
+    private readonly businesses: InMemoryBusinesses,
+    private readonly reviews: InMemoryReviews,
+    private readonly analyses: InMemoryAnalyses,
+  ) {}
+
+  private get runs() {
+    return [...this.analyses.runs.values()];
+  }
+
+  async overview(now: Date): Promise<PlatformOverview> {
+    const users = [...this.users.items.values()];
+    const sum = (pick: (u: { calls: number; inputTokens: number; outputTokens: number }) => number) =>
+      this.runs.reduce((n, r) => n + pick(r.usage), 0);
+    return {
+      users: users.length,
+      admins: users.filter((u) => u.isAdmin).length,
+      lockedUsers: users.filter((u) => u.isLocked(now)).length,
+      businesses: this.businesses.items.size,
+      reviews: this.reviews.items.length,
+      analyses: {
+        completed: this.runs.filter((r) => r.status === 'completed').length,
+        failed: this.runs.filter((r) => r.status === 'failed').length,
+        inProgress: this.runs.filter((r) => r.isInProgress).length,
+      },
+      llm: { calls: sum((u) => u.calls), inputTokens: sum((u) => u.inputTokens), outputTokens: sum((u) => u.outputTokens) },
+    };
+  }
+
+  async usageByDay(days: number): Promise<DailyUsage[]> {
+    const today = new Date();
+    return Array.from({ length: days }, (_, i) => {
+      const d = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate() - (days - 1 - i)));
+      const day = d.toISOString().slice(0, 10);
+      const runs = this.runs.filter((r) => r.createdAt.toISOString().slice(0, 10) === day);
+      return {
+        day,
+        analyses: runs.length,
+        failed: runs.filter((r) => r.status === 'failed').length,
+        llmCalls: runs.reduce((n, r) => n + r.usage.calls, 0),
+        tokens: runs.reduce((n, r) => n + r.usage.inputTokens + r.usage.outputTokens, 0),
+      };
+    });
+  }
+
+  async listUsers(limit: number): Promise<UserSummary[]> {
+    return [...this.users.items.values()].slice(0, limit).map((u) => {
+      const owned = [...this.businesses.items.values()].filter((b) => b.ownerId === u.id).map((b) => b.id);
+      return {
+        id: u.id,
+        name: u.name,
+        email: u.email.value,
+        role: u.role,
+        createdAt: u.createdAt,
+        lockedUntil: u.lockedUntil,
+        businesses: owned.length,
+        reviews: this.reviews.items.filter((r) => owned.includes(r.businessId)).length,
+      };
+    });
+  }
+
+  async failedAnalyses(limit: number): Promise<FailedAnalysis[]> {
+    return this.runs
+      .filter((r) => r.status === 'failed')
+      .slice(0, limit)
+      .map((r) => {
+        const business = this.businesses.items.get(r.businessId);
+        const owner = business ? this.users.items.get(business.ownerId) : undefined;
+        return {
+          runId: r.id,
+          businessId: r.businessId,
+          businessName: business?.name ?? '',
+          ownerEmail: owner?.email.value ?? '',
+          provider: r.provider,
+          attempts: r.attempts,
+          error: r.error,
+          finishedAt: r.finishedAt,
+        };
+      });
+  }
+}

@@ -7,6 +7,7 @@ import {
   AuthenticationError,
   ConflictError,
   DomainError,
+  ForbiddenError,
   NotFoundError,
   ValidationError,
 } from '../../../domain/errors/DomainError.js';
@@ -28,6 +29,7 @@ const STATUS_BY_DOMAIN_ERROR = new Map<DomainErrorClass, number>([
   [ValidationError, 400],
   [AuthenticationError, 401],
   [AccountLockedError, 423],
+  [ForbiddenError, 403],
   [NotFoundError, 404],
   [ConflictError, 409],
   [AnalyzerError, 502],

@@ -93,3 +93,57 @@ export interface AnalysisRepository {
    */
   recoverInterrupted(reason: string): Promise<{ requeued: number; failed: number }>;
 }
+
+/** Cifras de toda la plataforma para el panel de administración. Solo agregados: nada de contenido. */
+export interface PlatformOverview {
+  users: number;
+  admins: number;
+  lockedUsers: number;
+  businesses: number;
+  reviews: number;
+  analyses: { completed: number; failed: number; inProgress: number };
+  llm: { calls: number; inputTokens: number; outputTokens: number };
+}
+
+export interface DailyUsage {
+  /** Día en formato AAAA-MM-DD (UTC). */
+  day: string;
+  analyses: number;
+  failed: number;
+  llmCalls: number;
+  tokens: number;
+}
+
+/** Fila de la lista de usuarios: datos de la cuenta y conteos, nunca reseñas ni análisis ajenos. */
+export interface UserSummary {
+  id: string;
+  name: string;
+  email: string;
+  role: 'user' | 'admin';
+  createdAt: Date;
+  lockedUntil: Date | null;
+  businesses: number;
+  reviews: number;
+}
+
+export interface FailedAnalysis {
+  runId: string;
+  businessId: string;
+  businessName: string;
+  ownerEmail: string;
+  provider: string;
+  attempts: number;
+  error: string | null;
+  finishedAt: Date | null;
+}
+
+/**
+ * Modelo de lectura del panel de administración (CQRS ligero): consultas agregadas sobre toda la
+ * plataforma, separadas de los repositorios que usan los casos de uso del dueño del negocio.
+ */
+export interface AdminReadModel {
+  overview(now: Date): Promise<PlatformOverview>;
+  usageByDay(days: number): Promise<DailyUsage[]>;
+  listUsers(limit: number): Promise<UserSummary[]>;
+  failedAnalyses(limit: number): Promise<FailedAnalysis[]>;
+}

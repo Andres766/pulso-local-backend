@@ -21,6 +21,11 @@ export class NotFoundError extends DomainError {
   readonly code = 'NOT_FOUND';
 }
 
+/** El usuario está autenticado pero su rol no le permite la operación (p. ej. el panel de administración). */
+export class ForbiddenError extends DomainError {
+  readonly code = 'FORBIDDEN';
+}
+
 /** El estado actual no permite la operación (p. ej. analizar sin reseñas). */
 export class ConflictError extends DomainError {
   readonly code = 'CONFLICT';

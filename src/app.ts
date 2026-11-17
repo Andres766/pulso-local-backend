@@ -6,6 +6,7 @@ import type { Logger as PinoLogger } from 'pino';
 import { pinoHttp } from 'pino-http';
 import type { AppConfig } from './config/env.js';
 import type { SessionValidator, TokenService } from './domain/ports/Services.js';
+import type { AdminController } from './interfaces/http/controllers/AdminController.js';
 import type { AnalysisController } from './interfaces/http/controllers/AnalysisController.js';
 import type { AuthController } from './interfaces/http/controllers/AuthController.js';
 import type { BusinessController } from './interfaces/http/controllers/BusinessController.js';
@@ -32,6 +33,7 @@ export interface AppDependencies {
   reviewController: ReviewController;
   analysisController: AnalysisController;
   realtimeController: RealtimeController;
+  adminController: AdminController;
 }
 
 /** Construye la aplicación Express a partir de sus dependencias ya armadas (inyección de dependencias). */

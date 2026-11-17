@@ -1,6 +1,13 @@
 import { pino } from 'pino';
 import type { AppDependencies } from '../../src/app.js';
 import {
+  AdminAccess,
+  GetAdminDashboard,
+  ListUsersForAdmin,
+  RetryFailedAnalysis,
+  UnlockUser,
+} from '../../src/application/use-cases/admin/AdminUseCases.js';
+import {
   GetAnalysis,
   GetBusinessesOverview,
   GetDashboard,
@@ -38,6 +45,7 @@ import { PublishingAnalysisRepository } from '../../src/infrastructure/realtime/
 import { InMemoryRealtimeBus } from '../../src/infrastructure/realtime/RealtimeBus.js';
 import { JwtTokenService } from '../../src/infrastructure/security/JwtTokenService.js';
 import { RealtimeTicketService } from '../../src/infrastructure/security/RealtimeTicketService.js';
+import { AdminController } from '../../src/interfaces/http/controllers/AdminController.js';
 import { AnalysisController } from '../../src/interfaces/http/controllers/AnalysisController.js';
 import { AuthController } from '../../src/interfaces/http/controllers/AuthController.js';
 import { BusinessController } from '../../src/interfaces/http/controllers/BusinessController.js';
@@ -45,7 +53,15 @@ import { HealthController } from '../../src/interfaces/http/controllers/HealthCo
 import { RealtimeController } from '../../src/interfaces/http/controllers/RealtimeController.js';
 import { ReviewController } from '../../src/interfaces/http/controllers/ReviewController.js';
 import { RealtimeGateway } from '../../src/interfaces/realtime/RealtimeGateway.js';
-import { FakeHasher, InMemoryAnalyses, InMemoryBusinesses, InMemoryReviews, InMemoryUsers, silentLogger } from '../fakes.js';
+import {
+  FakeHasher,
+  InMemoryAdminReadModel,
+  InMemoryAnalyses,
+  InMemoryBusinesses,
+  InMemoryReviews,
+  InMemoryUsers,
+  silentLogger,
+} from '../fakes.js';
 
 export const FRONTEND_ORIGIN = 'http://localhost:5180';
 const SECRET = 'clave-de-prueba-con-mas-de-32-caracteres';
@@ -54,6 +70,9 @@ export interface TestApp {
   deps: AppDependencies;
   realtime: RealtimeGateway;
   bus: InMemoryRealtimeBus;
+  /** Acceso directo a los usuarios: las pruebas nombran administradores como lo haría make-admin. */
+  users: InMemoryUsers;
+  analyses: InMemoryAnalyses;
 }
 
 /**
@@ -66,7 +85,8 @@ export function buildTestApp(): TestApp {
   const reviews = new InMemoryReviews();
   const bus = new InMemoryRealtimeBus();
   // Igual que en el contenedor: los cambios de estado de los análisis se publican en el bus.
-  const analyses = new PublishingAnalysisRepository(new InMemoryAnalyses(reviews), bus);
+  const memoryAnalyses = new InMemoryAnalyses(reviews);
+  const analyses = new PublishingAnalysisRepository(memoryAnalyses, bus);
   const hasher = new FakeHasher();
   const tokens = new JwtTokenService(SECRET, 1);
   const analyzer = new HeuristicReviewAnalyzer();
@@ -127,6 +147,12 @@ export function buildTestApp(): TestApp {
       new GetBusinessesOverview(businesses, reviews, analyses, new InsightComparator()),
     ),
     realtimeController: new RealtimeController(tokens, tickets, null),
+    adminController: new AdminController(
+      new GetAdminDashboard(new AdminAccess(users), new InMemoryAdminReadModel(users, businesses, reviews, memoryAnalyses)),
+      new ListUsersForAdmin(new AdminAccess(users), new InMemoryAdminReadModel(users, businesses, reviews, memoryAnalyses)),
+      new UnlockUser(new AdminAccess(users), users),
+      new RetryFailedAnalysis(new AdminAccess(users), analyses, reviews, analyzer, jobs),
+    ),
   };
-  return { deps, realtime, bus };
+  return { deps, realtime, bus, users, analyses: memoryAnalyses };
 }

@@ -8,6 +8,7 @@ import { Rating } from '../../src/domain/value-objects/Rating.js';
 import { Sentiment } from '../../src/domain/value-objects/Sentiment.js';
 import { Database } from '../../src/infrastructure/db/Database.js';
 import { runMigrations } from '../../src/infrastructure/db/migrate.js';
+import { PgAdminReadModel } from '../../src/infrastructure/db/repositories/PgAdminReadModel.js';
 import { PgAnalysisRepository } from '../../src/infrastructure/db/repositories/PgAnalysisRepository.js';
 import { PgBusinessRepository } from '../../src/infrastructure/db/repositories/PgBusinessRepository.js';
 import { PgReviewRepository } from '../../src/infrastructure/db/repositories/PgReviewRepository.js';
@@ -39,7 +40,7 @@ describe.skipIf(!url)('Repositorios PostgreSQL', () => {
   beforeAll(async () => {
     db = new Database(url!);
     await db.query('DROP SCHEMA public CASCADE; CREATE SCHEMA public;');
-    expect(await runMigrations(db)).toHaveLength(5);
+    expect(await runMigrations(db)).toHaveLength(6);
     users = new PgUserRepository(db);
     businesses = new PgBusinessRepository(db);
     reviews = new PgReviewRepository(db);
@@ -69,6 +70,49 @@ describe.skipIf(!url)('Repositorios PostgreSQL', () => {
 
   it('las migraciones son idempotentes', async () => {
     expect(await runMigrations(db)).toEqual([]);
+  });
+
+  it('el rol de administrador se persiste y se puede quitar', async () => {
+    expect((await users.findById(owner.id))!.role).toBe('user');
+    owner.promoteToAdmin();
+    await users.save(owner);
+    expect((await users.findById(owner.id))!.isAdmin).toBe(true);
+    owner.revokeAdmin();
+    await users.save(owner);
+    expect((await users.findById(owner.id))!.isAdmin).toBe(false);
+  });
+
+  it('el panel de administración solo trae cifras agregadas y los análisis fallidos', async () => {
+    await reviews.saveMany([review('El café es delicioso', 5, 1), review('Demoraron una hora', 1, 2)]);
+    const failed = AnalysisRun.request({ businessId: business.id, provider: 'gemini:prueba', reviewCount: 2 });
+    failed.start();
+    failed.recordUsage({ calls: 2, inputTokens: 300, outputTokens: 120 });
+    failed.fail('La IA está saturada');
+    await analyses.save(failed);
+    for (let i = 0; i < 5; i++) owner.registerFailedLogin();
+    await users.save(owner);
+
+    const admin = new PgAdminReadModel(db);
+    const overview = await admin.overview(new Date());
+    expect(overview).toMatchObject({ users: 1, admins: 0, lockedUsers: 1, businesses: 1, reviews: 2 });
+    expect(overview.analyses).toEqual({ completed: 0, failed: 1, inProgress: 0 });
+    expect(overview.llm).toEqual({ calls: 2, inputTokens: 300, outputTokens: 120 });
+
+    const usage = await admin.usageByDay(14);
+    expect(usage).toHaveLength(14); // también los días sin análisis, en cero
+    expect(usage.at(-1)).toMatchObject({ analyses: 1, failed: 1, llmCalls: 2, tokens: 420 });
+
+    const [failedRow] = await admin.failedAnalyses(10);
+    expect(failedRow).toMatchObject({
+      runId: failed.id,
+      businessName: 'Café Galeras',
+      ownerEmail: owner.email.value,
+      error: 'La IA está saturada',
+    });
+    const [userRow] = await admin.listUsers(10);
+    expect(userRow).toMatchObject({ email: owner.email.value, role: 'user', businesses: 1, reviews: 2 });
+    // Privacidad: ninguna fila trae el texto de las reseñas.
+    expect(JSON.stringify({ overview, usage, failedRow, userRow })).not.toContain('delicioso');
   });
 
   it('el usuario persiste bloqueo y versión de sesión', async () => {
