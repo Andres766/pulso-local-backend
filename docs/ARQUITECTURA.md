@@ -206,7 +206,8 @@ la reintenta en el servidor con otro modelo.
 | **Facade** | `HttpClient` en el frontend | Un único punto que añade la cookie, el header CSRF y los errores tipados |
 | **Domain Service** | `InsightAggregator`, `InsightComparator`, `SentimentTrend` | Cálculos puros del negocio (cifras y evolución) sin E/S, fáciles de probar |
 | **Productor–consumidor (cola de trabajos)** | `RequestAnalysis` encola; `AnalysisWorker` consume con `claimNext()`; `PollingJobRunner` decide cuándo | El análisis no bloquea la petición HTTP y sobrevive a reinicios |
-| **CQRS ligero** | `GetDashboard`, `ReviewRepository.search()` | Consultas de lectura optimizadas, separadas de los comandos |
+| **Control de acceso por roles (RBAC)** | `AdminAccess.requireAdmin()` en cada caso de uso de administración | Igual que `BusinessAccess`: un único punto de autorización que ninguna ruta nueva puede olvidar |
+| **CQRS ligero** | `GetDashboard`, `ReviewRepository.search()`, `AdminReadModel` | Consultas de lectura optimizadas, separadas de los comandos |
 
 ### Programación orientada a objetos
 
@@ -230,6 +231,8 @@ la reintenta en el servidor con otro modelo.
 | Inyección SQL | Solo consultas parametrizadas; incluso los filtros dinámicos usan `$n` | `Pg*Repository` |
 | Robo de sesión por XSS | JWT en cookie `httpOnly`, `SameSite=Strict` y `Secure` en producción; React escapa todo el texto (no se usa `dangerouslySetInnerHTML`) | `AuthController`, frontend |
 | CSRF | Cookie `SameSite=Strict` y header obligatorio `X-Requested-With` en todo método que modifica estado | `requireCsrfHeader` |
+| Escalada de privilegios (RBAC) | Rol `user` / `admin` guardado en la base y revisado **en cada petición** por `AdminAccess` (quitar el rol surte efecto de inmediato); el rol solo se asigna desde el servidor (`npm run make-admin`, `ADMIN_EMAILS`), no existe ruta HTTP para cambiarlo; un usuario normal recibe 403 | `AdminAccess`, `make-admin.ts` |
+| Privacidad frente al administrador | El panel solo trae cifras agregadas y metadatos (correo, nombre del negocio, error): nunca el texto de las reseñas ni los resultados ajenos; una prueba lo verifica | `PgAdminReadModel` |
 | IDOR (acceder a negocios ajenos) | `BusinessAccess.requireOwned()` en **todos** los casos de uso; responde 404 para no revelar si el negocio existe | `BusinessAccess`, `Business.assertOwnedBy` |
 | Fuerza bruta | Límite de 10 fallos / 15 min por **IP + correo** y 50 / 15 min por IP (relleno de credenciales); **bloqueo de la cuenta 15 min** tras 5 fallos seguidos, aunque vengan de muchas IP; bcrypt con costo 12 | `authLimiter`, `authIpLimiter`, `User.registerFailedLogin`, `BcryptPasswordHasher` |
 | Sesión robada | **Versión de sesión** dentro del JWT: cambiar la contraseña invalida al instante todos los tokens anteriores; `requireAuth` verifica firma y versión vigente | `ValidateSession`, `ChangePassword` |
@@ -315,7 +318,7 @@ y abre el socket con `?ticket=`. En el mismo origen (Vite, nginx) basta la cooki
 
 ## 10. API REST
 
-El contrato completo (25 operaciones, con parámetros, cuerpos y errores) está en **`GET /api/openapi.json`**
+El contrato completo (29 operaciones, con parámetros, cuerpos y errores) está en **`GET /api/openapi.json`**
 (OpenAPI 3.1; se abre en https://editor.swagger.io). Una prueba recorre las rutas registradas en Express y falla
 si alguna no está documentada.
 
@@ -326,6 +329,7 @@ si alguna no está documentada.
 | Negocios | `GET`/`POST /businesses` · `GET`/`PATCH`/`DELETE /businesses/:id` |
 | Reseñas | `GET /businesses/:id/reviews` (filtros, orden, paginación) · `POST …/reviews/csv` · `POST …/reviews/text` · `GET …/reviews/export` · `DELETE …/reviews` · `DELETE …/reviews/:reviewId` |
 | Tiempo real | `POST /realtime/ticket` y el WebSocket `/api/ws` (sección 9) |
+| Administración (rol admin) | `GET /admin/dashboard` · `GET /admin/users` · `POST /admin/users/:id/unlock` · `POST /admin/analyses/:id/retry` |
 | Análisis | `POST /businesses/:id/analyses` (202) · `GET /analyses/:id` · `GET /businesses/:id/dashboard` · `GET /businesses/:id/trend` · `GET /businesses/overview` (pulso de todos los negocios) |
 
 ---
@@ -390,6 +394,9 @@ analiza en ~25 s y su cuota gratuita es mayor; 3.5 Flash queda de respaldo.
   un solo uso y polling de respaldo (sección 9). Dos pestañas abiertas se enteran al instante del análisis que lanzó
   la otra; *Mis negocios* se actualiza sola.
 - [x] Interfaz en **español e inglés** y tema claro/oscuro.
+- [x] **Rol de administrador (RBAC):** panel con cifras de la plataforma, consumo de IA por día, análisis fallidos
+  con reintento y desbloqueo de cuentas; sin acceso a reseñas ajenas.
+- [x] Modelo **Gemini Flash-Lite** como principal (sección 11): la cuota gratuita de 3.5 Flash era de 20 llamadas al día.
 
 **Siguientes pasos posibles**
 1. Ampliar el conjunto de evaluación (≈ 200 reseñas) y medir también la detección de temas.
